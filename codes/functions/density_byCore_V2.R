@@ -17,18 +17,11 @@ density_byCore <- function(densities,
   melted<- left_join(melted, specimen, by="sample_id")
   melted$Site <- factor(melted$Site, levels = c(site1_ref,site2))
   
-  # take mean by cores
-  table<- melted %>% 
-    group_by(celltypes, sample_id, Site) %>% 
-    mutate(avg= mean(value))
-  table<-table[!duplicated(table[c("celltypes","sample_id","Site")]),]
-  
-  
-  df = table[table$celltypes%in%coi,]
+  df = melted[melted$celltypes%in%coi,]
   df$celltypes<- factor(df$celltypes, levels= coi)
   
 
-  p<- ggplot(df, aes(Site, avg, fill=Site)) + 
+  p<- ggplot(df, aes(Site, value, fill=Site)) + 
     geom_point(size = 2, shape=22, color="black", stroke=0.8, 
                position = position_jitter(width = 0.1, height = 0),
                alpha=0.8)+
