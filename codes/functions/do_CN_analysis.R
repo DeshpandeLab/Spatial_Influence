@@ -55,7 +55,7 @@ do_CN_analysis <- function(spatwt_df = spatwt_df_tum, #cell of interest filtered
   
   ## dot plot for CN clustering ===
   p2<-ggplot(df_filtered, aes(x=celltype, y=tme)) + 
-    geom_point(pch = 21, stroke = 0.5, col="grey", aes(size = median, fill = zscore)) + 
+    geom_point(pch = 21, stroke = 0.5, col="black", aes(size = median, fill = zscore)) + 
     theme_classic() +
     labs(size = "Median\nCellular Influences", fill="z-score")+ 
     ylab("") + 
@@ -70,8 +70,8 @@ do_CN_analysis <- function(spatwt_df = spatwt_df_tum, #cell of interest filtered
           legend.text = element_text(size = 7), 
           legend.key.size = unit(0.2, "cm"),
           legend.position="right") + 
-    scale_color_discrete("grey")+
-    scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0)+
+    scale_color_discrete("black")+
+    scale_fill_gradient2(low = "blue", mid = "yellow", high = "red", midpoint = 0)+
     scale_y_discrete(position = "left") + 
     scale_x_discrete(
       guide = guide_axis(angle = 45),position = "top") + 
