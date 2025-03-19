@@ -395,8 +395,8 @@ idx <- list(
 # sample info dataframe
 unique_id <- unique(output$sample_ids)
 sampInfo <- data.frame(sample_id = unique_id)
-sampInfo$Site <- as.factor(output$Site[match(sampInfo$sample_id, output$meta_data$sample_ids)])
-sampInfo$Patient <- as.factor(output$Patient[match(sampInfo$sample_id, output$meta_data$sample_ids)])
+sampInfo$Site <- as.factor(output$Site[match(sampInfo$sample_id, output$meta_data$sample_id)])
+sampInfo$Patient <- as.factor(output$Patient[match(sampInfo$sample_id, output$meta_data$sample_id)])
 
 majorCelltypes <- list(c("CD8T", "CD4T", "Treg", "M_I", "M_II", "Neutrophil", "Str_I", "Str_II", "Tumor"), 
                        c("CD8T","CD4T","Treg","NK","M_I", "M_II", "Neutrophil", "Str_I", "Str_II", "UA"))
