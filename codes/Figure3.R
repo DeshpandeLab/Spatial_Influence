@@ -162,14 +162,14 @@ summary_df <- data_for_plot %>%
   group_by(variable, CN, Site)%>% 
   dplyr::summarise(
     median_value = median(value))%>%
-  group_by(variable, Site)%>% 
+  group_by(variable)%>% 
   dplyr::mutate(scaled_median = as.numeric(scale(median_value)))
 
 # scaled Marker expression (across CN)
 p<- ggplot(summary_df, aes(variable, scaled_median, fill = Site)) +
   geom_bar(width = 1, stat = "identity", color = "black",  alpha = 0.7)  + 
   scale_y_continuous(breaks = scales::breaks_width(1))+
-  geom_hline(yintercept = 0, color = "black", size = 0.7) +
+  geom_hline(yintercept = 0, color = "blue", size = 0.7) +
   #scale_fill_manual(values = tme_colors) +  # Custom colors
   theme_minimal() +
   theme(
@@ -294,14 +294,14 @@ summary_df <- data_for_plot %>%
   dplyr::summarise(
     mean_value = mean(value), 
     median_value = median(value))%>%
-  group_by(variable, Site)%>% 
+  group_by(variable)%>% 
   dplyr::mutate(scaled_median = as.numeric(scale(median_value)))
 
 # scaled Marker expression (across CN)
 p<- ggplot(summary_df, aes(variable, scaled_median, fill = Site)) +
   geom_bar(width = 1, stat = "identity", color = "black",  alpha = 0.7)  + 
   scale_y_continuous(breaks = scales::breaks_width(1))+
-  geom_hline(yintercept = 0, color = "black", size = 0.7) +
+  geom_hline(yintercept = 0, color = "blue", size = 0.7) +
   #scale_fill_manual(values = tme_colors) +  # Custom colors
   theme_minimal() +
   theme(
@@ -339,7 +339,18 @@ summary_df_line <- data_for_plot_line %>%
     third_quantile =quantile(value, 0.75) 
   )
 
-summary_df_line$type<- factor(summary_df_line$type, levels=c("BK", c(1:numClust)))
+# order manual
+summary_df_line$type <- as.character(summary_df_line$type)
+
+summary_df_line$type <- ifelse(summary_df_line$type != "BK",
+                               paste0("CN", summary_df_line$type),
+                               summary_df_line$type)
+
+
+summary_df_line$type<- factor(summary_df_line$type, 
+                              levels=c("BK", paste0("CN", c(2,1,3,4,7,8, 9, 10, 5, 12,6, 11))))
+
+summary_df_line$variable<- factor(summary_df_line$variable, levels=tum_markers)
 
 pdf('./output/FigureS3E.pdf', height=5, width=9)
 pS3E<- ggplot(summary_df_line, aes(x = type, y = median_value, color = Site, group = Site)) +
