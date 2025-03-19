@@ -29,6 +29,11 @@ library(ggpubr)
 library(tidyverse)
 library(ggsignif)
 library(broom)
+library(TCGAbiolinks)
+library(SummarizedExperiment)
+library(DESeq2)
+library(survival)
+library(survminer)
 
 ## load functions ====
 source('codes/functions/returnfcs.R')
