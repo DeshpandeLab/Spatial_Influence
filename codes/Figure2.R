@@ -300,7 +300,7 @@ data_for_plot_combined$sample_id<- as.factor(data_for_plot_combined$sample_id)
 
 pdf('./output/Figure2E.pdf', height = 3, width=15)
 p2E<- ggplot(data_for_plot_combined, aes(x = X_position, y = Y_position)) + 
-  geom_point(aes(color = cluster), size = 4) +
+  geom_point(aes(color = celltype), size = 4) +
   geom_point(
     data = data_for_plot_combined %>% dplyr::filter(is_reference == TRUE),
     aes(x = X_position, y = Y_position),
