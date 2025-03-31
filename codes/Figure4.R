@@ -211,10 +211,10 @@ summary_df <- data_for_heatmap %>%
     mean = mean(value))
 
 summary_df_selected<- summary_df%>% 
-  filter(variable%in%selected_celltypes)
+  dplyr::filter(variable%in%selected_celltypes)
 
 data_melted<- summary_df %>%
-  filter(variable %in% selected_markers) %>%  # Keep only selected variables
+  dplyr::filter(variable %in% selected_markers) %>%  # Keep only selected variables
   pivot_wider(
     names_from = variable,  # Use the selected variables as new column names
     values_from = mean      # Populate the new columns with 'mean'
