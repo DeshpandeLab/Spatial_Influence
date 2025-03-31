@@ -435,7 +435,7 @@ plot_multiple_probability_masks(coord_data = mask_data,
                                 probability_mask_folder = 'Probability_masks/',
                                 colorassigned = colorassigned,
                                 ncols = 4, 
-                                filenameprefix= "cellmask")
+                                filenameprefix= "Figure4G_")
 
 
 index <- which(output$cell_clustering2m=="Tumor"&
@@ -490,7 +490,7 @@ merged_summary$type<- factor(merged_summary$type,
 
 
 pdf('./output/FigureS4A.pdf', height=4, width=4)
-ggplot(merged_summary,
+pS4A<- ggplot(merged_summary,
        aes(x=type, y=VISTA, color=type)) +
   geom_boxplot(alpha=0.5) +
   geom_jitter(width=0.2, alpha=0.6, size=1)+ 
@@ -500,6 +500,7 @@ ggplot(merged_summary,
         axis.text.x = element_text(angle=45, color="black", hjust=1),
         plot.title = element_text(hjust = 0.5))+
   facet_wrap(~Site)
+print(pS4A)
 dev.off()
 
 
@@ -520,7 +521,7 @@ ggplot(merged_summary,
 
 
 pdf('./output/FigureS4B.pdf', height=4, width=5)
-ggplot(merged_summary,
+pS4B<- ggplot(merged_summary,
        aes(x= VISTA, y=Neutrophil, color=type)) +
   geom_point(alpha=0.5) +
   theme_bw() + 
@@ -534,6 +535,7 @@ ggplot(merged_summary,
   #         size=3) + 
   geom_smooth(method=lm, aes(fill=type), alpha=0.2)+ 
   facet_wrap(~Site)
+print(pS4B)
 dev.off()
 
 
@@ -664,7 +666,8 @@ fit = survfit(Surv(overall_survival, deceased) ~ strata, data=selcted_gene)
 
 # Kaplan Meier plot
 pdf('./output/FigureS4C.pdf', height=5, width=5)
-ggsurvplot(fit, data=selcted_gene, pval=T, risk.table=T, risk.table.col="strata", xlab="Time (days)")
+pS4C<- ggsurvplot(fit, data=selcted_gene, pval=T, risk.table=T, risk.table.col="strata", xlab="Time (days)")
+print(pS4C)
 dev.off()
 
 
@@ -759,7 +762,7 @@ strip_colors <- ifelse(levels(merged_summary2_melt$variable) %in% highlight_vars
 
 
 pdf('./output/FigureS4E.pdf', height=4, width=9)
-ggplot(merged_summary2_melt, aes(x=Site, y=value, group=Patient))+
+pS4E<- ggplot(merged_summary2_melt, aes(x=Site, y=value, group=Patient))+
   geom_line(aes(color=Patient), size = 1) + 
   geom_point(aes(shape=Patient))+ 
   facet_wrap2(~variable, scales = "free_y", ncol = 8,
@@ -773,6 +776,7 @@ ggplot(merged_summary2_melt, aes(x=Site, y=value, group=Patient))+
         legend.position = "top", 
         legend.direction = "horizontal")+
   guides(color = guide_legend(nrow = 1), shape = guide_legend(nrow = 1))
+print(pS4E)
 dev.off()
 
 
