@@ -216,7 +216,7 @@ do_CN_analysis <- function(spatwt_df = spatwt_df_tum, #cell of interest filtered
     theme_minimal() + 
     labs(
       x = "TME",
-      y = "Scaled Expression",
+      y = "Median Expression",
       color = "Site",
       fill = "Site"
     ) +
@@ -242,7 +242,7 @@ do_CN_analysis <- function(spatwt_df = spatwt_df_tum, #cell of interest filtered
     theme_minimal() + 
     labs(
       x = "TME",
-      y = "Scaled Expression",
+      y = "Median Expression",
       color = "Site",
       fill = "Site"
     ) +
