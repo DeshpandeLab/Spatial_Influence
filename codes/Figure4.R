@@ -176,6 +176,7 @@ p4E<- ggplot(summary_df_2[summary_df_2$variable%in%selected_celltypes, ], aes(x 
 print(p4E)
 dev.off()
 
+site_comparison<- list(c("Pancreas", "Liver"))
 pdf('./output/tumor_BK.pdf', height=10, width=10)
 p<- ggplot(summary_df_2[summary_df_2$type=="BK", ], aes(x = Site, y = mean_value, color = Site)) +
   geom_violin(alpha = 0.6, position = position_dodge(width = 0.8)) +
@@ -448,6 +449,225 @@ plot_marker_level(coord_data = coord[index, ],
                   ncols=4)
 
 # Supplementary Figure 4
+df <- cbind(spatwt_df_tum[, clusterlevels], markerExpr)
+
+selected_celltypes <- c("Immune_Mix","CD8T","CD4T","Treg", "NK", 
+                        "M_I","M_II","M_III","Neutrophil", "Str_I", "Str_II", 
+                        "Str_III", "Str_IV", "Tumor", "UA")
+
+selected_markers<- c("CK", "KI67", "PDL1", "CD86", "VISTA")
+
+celltype_summary <- df %>%
+  dplyr::select(all_of(selected_celltypes), sample_id, Site) %>%
+  group_by(sample_id, Site) %>%
+  summarise(across(all_of(selected_celltypes), mean, na.rm = TRUE), .groups = "drop")
+
+marker_summary <- df %>%
+  dplyr::select(all_of(selected_markers), sample_id, Site) %>%
+  group_by(sample_id,Site) %>%
+  summarise(across(all_of(selected_markers), mean, na.rm = TRUE), .groups = "drop")
+
+merged_summary <- left_join(celltype_summary, marker_summary, by = c("sample_id", "Site"))
+
+
+CD8T_med <- median(merged_summary$CD8T)
+PDL1_med <- median(merged_summary$PDL1)
+
+
+merged_summary$type <- ifelse(
+  merged_summary$CD8T >= CD8T_med & merged_summary$PDL1 >= PDL1_med, "CD8T+PDL1+",
+  ifelse(merged_summary$CD8T <= CD8T_med & merged_summary$PDL1 >= PDL1_med, "CD8T-PDL1+",
+         ifelse(merged_summary$CD8T >= CD8T_med & merged_summary$PDL1 <= PDL1_med, "CD8T+PDL1-", "CD8T-PDL1-")
+  )
+)
+
+
+merged_summary$type<- factor(merged_summary$type, 
+                             levels = c("CD8T+PDL1+", 
+                                        "CD8T-PDL1-", 
+                                        "CD8T-PDL1+",
+                                        "CD8T+PDL1-"))
+
+
+pdf('./output/FigureS4A.pdf', height=4, width=4)
+ggplot(merged_summary,
+       aes(x=type, y=VISTA, color=type)) +
+  geom_boxplot(alpha=0.5) +
+  geom_jitter(width=0.2, alpha=0.6, size=1)+ 
+  theme_bw()+ 
+  theme(strip.background = element_blank(),
+        strip.text = element_text(size = 15),
+        axis.text.x = element_text(angle=45, color="black", hjust=1),
+        plot.title = element_text(hjust = 0.5))+
+  facet_wrap(~Site)
+dev.off()
+
+
+ggplot(merged_summary,
+       aes(x=VISTA, y=Neutrophil, color=type)) +
+  geom_point(alpha=0.5) +
+  theme_classic() + 
+  theme(strip.background = element_blank(),
+        strip.text = element_text(size = 15),
+        plot.title = element_text(hjust = 0.5))+
+  stat_cor(aes(color=type), method='spearman', 
+           label.y.npc="top", 
+           label.x.npc = "left",
+           label.sep='\n',
+           size=4) + 
+  geom_smooth(method=lm, aes(fill=type), alpha=0.2)+ 
+  facet_wrap(~Site)
+
+
+pdf('./output/FigureS4B.pdf', height=4, width=5)
+ggplot(merged_summary,
+       aes(x= VISTA, y=Neutrophil, color=type)) +
+  geom_point(alpha=0.5) +
+  theme_bw() + 
+  theme(strip.background = element_blank(),
+        strip.text = element_text(size = 15),
+        axis.text= element_text(color="black"),
+        plot.title = element_text(hjust = 0.5))+
+  #stat_cor(aes(color=type), method='spearman', 
+  #         label.y.npc="top", 
+  #         label.x.npc = "left",
+  #         size=3) + 
+  geom_smooth(method=lm, aes(fill=type), alpha=0.2)+ 
+  facet_wrap(~Site)
+dev.off()
+
+
+# Survival analysis
+#----------TCGA data-----------
+GDCprojects = getGDCprojects()
+
+head(GDCprojects[c("project_id", "name")])
+#https://docs.gdc.cancer.gov/Data_Portal/Users_Guide/Projects/
+
+project_id <- "TCGA-PAAD"
+TCGAbiolinks:::getProjectSummary(project_id)
+
+query_TCGA = GDCquery(
+  project = project_id,
+  data.category = "Transcriptome Profiling", 
+  data.type = "Gene Expression Quantification", 
+  experimental.strategy = "RNA-Seq",
+  workflow.type = "STAR - Counts",
+  sample.type = c("Primary Tumor"))
+
+#Visualize the query results
+prad_res = getResults(query_TCGA) # make results as table
+colnames(prad_res)
+table(prad_res$sample_type)
+prad_res$sample_type <- as.factor(prad_res$sample_type)
+
+
+
+##Next, we need to download the files from the query
+GDCdownload(query = query_TCGA)
+tcga_data = GDCprepare(query_TCGA)
+
+table(tcga_data@colData$vital_status)
+table(tcga_data@colData$tissue_or_organ_of_origin)
+
+dim(assay(tcga_data))     # gene expression matrices
+head(assay(tcga_data)[,1:10]) 
+head(rowData(tcga_data))    
+saveRDS(object = tcga_data,
+        file = "tcga_data_PAAD.RDS",
+        compress = FALSE)
+
+#----------the data can be loaded and begin from here--------
+#tcga_data = readRDS(file = "tcga_data_PAAD.RDS")
+
+
+#---------Survival analysis---------------------------
+# count data 
+primary_tumor_samples <- tcga_data@colData@rownames
+counts <- assay(tcga_data, "unstranded")
+
+gene_metadata <- as.data.frame(rowData(tcga_data))
+coldata<- as.data.frame(colData(tcga_data))
+
+# vst transform counts to be used for survival analysis (normalized data for comparison between patients) 
+dds <- DESeqDataSetFromMatrix(countData = counts, 
+                              colData = coldata, 
+                              design = ~1)
+# removing genes with sum total of 10 reads across all samples 
+keep <- rowSums(counts(dds)) >=10 
+dds <- dds[keep, ]
+
+# vst
+vsd <- vst(dds, blind = FALSE)
+paad_vst <- assay(vsd)
+
+geneName <- "VSIR"
+selcted_gene<-paad_vst%>% as.data.frame()%>% 
+  rownames_to_column("gene_id")%>% 
+  gather(key='case_id', value="counts", -gene_id)%>% 
+  left_join(., gene_metadata, by="gene_id")%>%
+  dplyr::filter(gene_name==geneName)
+
+head(selcted_gene)
+
+
+# Compute the 20th and 80th percentiles
+lowerquantile = 0.20
+upperquantile = 0.80
+percentile_lower <- quantile(selcted_gene$counts, lowerquantile, na.rm = TRUE)
+percentile_upper <- quantile(selcted_gene$counts, upperquantile, na.rm = TRUE)
+
+# Assign strata based on percentile thresholds
+selcted_gene$strata <- ifelse(selcted_gene$counts <= percentile_lower, "LOW",
+                              ifelse(selcted_gene$counts >= percentile_upper, "HIGH", NA))
+
+# validate VISTA expr level for high/low groups 
+ggplot(selcted_gene,
+       aes(x=strata, y=counts, color=strata)) +
+  geom_boxplot(alpha=0.5) +
+  geom_jitter(width=0.2, alpha=0.6, size=1)+ 
+  theme_bw()+ 
+  theme(strip.background = element_blank(),
+        strip.text = element_text(size = 15),
+        axis.text.x = element_text(angle=45, color="black", hjust=1),
+        plot.title = element_text(hjust = 0.5))
+
+# extract clinical data
+clinical = tcga_data@colData
+
+clin_df = clinical[, c("patient",
+                       "vital_status", #whether the patient is alive or dead
+                       "days_to_death", #the number of days passed from initial diagnosis to the death
+                       "days_to_collection" #the number of days passed from initial diagnosis to last visit
+)]
+
+# create a new boolean variable that has TRUE for dead patients
+# and FALSE for live patients
+clin_df$deceased = clin_df$vital_status == "Dead"
+
+# create an "overall survival" variable that is equal to days_to_death
+# for dead patients, and to days_to_last_follow_up for patients who
+# are still alive
+clin_df$overall_survival = ifelse(clin_df$deceased,
+                                  clin_df$days_to_death,
+                                  clin_df$days_to_collection)
+
+clin_df <- as.data.frame(clin_df)%>% 
+  rownames_to_column("submitter_id")
+selcted_gene<- merge(selcted_gene, clin_df, by.x="case_id", by.y="submitter_id")
+
+coxph(Surv(overall_survival,deceased) ~ counts, data=selcted_gene)
+
+
+# fit a survival model
+fit = survfit(Surv(overall_survival, deceased) ~ strata, data=selcted_gene)
+
+# Kaplan Meier plot
+pdf('./output/FigureS4C.pdf', height=5, width=5)
+ggsurvplot(fit, data=selcted_gene, pval=T, risk.table=T, risk.table.col="strata", xlab="Time (days)")
+dev.off()
+
+
 ## Matched Patients ==== 
 # matched patients 
 matchedPA<- intersect(unique(output$Patient[output$Site=="Pancreas"]), 
@@ -478,8 +698,8 @@ Tcell_ratio_PA[Tcell_ratio_PA$Site == "Liver", "Site"] <- "MET"
 Tcell_ratio_PA$Site <- factor(Tcell_ratio_PA$Site, levels=c("PRI", "MET"))
 
 
-pdf('./output/FigureS4A.pdf', height=3, width = 3)
-pS4A<- ggplot(Tcell_ratio_PA, aes(x = Site, y = ratio, fill = Site)) +
+pdf('./output/FigureS4D.pdf', height=3, width = 3)
+pS4D<- ggplot(Tcell_ratio_PA, aes(x = Site, y = ratio, fill = Site)) +
   geom_violin(alpha=0.6)+
   geom_boxplot(width=0.3, fill = NA, color = "black", alpha = 0.5)+
   geom_point(aes(shape = Patient),  # Map Patient to shape
@@ -498,161 +718,61 @@ pS4A<- ggplot(Tcell_ratio_PA, aes(x = Site, y = ratio, fill = Site)) +
   theme(axis.text.x = element_text(size=14, angle=45,  hjust =1), 
         axis.text = element_text(size=14, color="black"),
         axis.title = element_text(size=14, color="black"))
-print(pS4A)
+print(pS4D)
 dev.off()
 
+# observe cellular influence and marker expr level change by Patient (average by patient)
+df<- left_join(df, Specimen_designation[, c("sample_id", "Patient")], by="sample_id")
 
-# Cellular Influence on Tumors in matched patients 
-idx_tum <- which(output$cell_clustering2m=="Tumor"& 
-                   output$Patient%in%matchedPA& 
-                   output$sample_ids!=43)
-
-idx_cd8T<- which(output$cell_clustering2m=="CD8T"& 
-                   output$Patient%in%matchedPA& 
-                   output$sample_ids!=43)
+df_filtered<- df%>% 
+  dplyr::filter(Patient%in%c("PA2", "PA5", "PA6", "PA8", "PA10", "PA11"))
 
 
-# Define the list of `spatwt` objects 
-spatwt_list <- list(spatwt[idx_tum,] , spatwt[idx_cd8T,])  
-output_names <- c("tumor", "cd8T")
-celltypes<- list(c("M_I", "M_II", "M_III",
-                   "Str_I", "Str_II", "Tumor", "Neutrophil", "UA"), 
-                 c("CD8T","CD4T", "Treg", "M_I", "M_II", "Str_I", "Str_II", "Tumor"))  
+celltype_summary_2 <- df_filtered %>%
+  dplyr::select(all_of(selected_celltypes), Patient, Site) %>%
+  group_by(Patient, Site) %>%
+  summarise(across(all_of(selected_celltypes), mean, na.rm = TRUE), .groups = "drop")
 
-for (idx in seq_along(spatwt_list)) {
-  spatwt_PA <- spatwt_list[[idx]]  
-  celltype <- output_names[idx]  
-  majorCelltypes<- celltypes[[idx]]
-  
-  spatwt_PA$Site <- factor(output$Site[match(spatwt_PA$sample_id, output$meta_data$sample_id)], levels = sitelevels)
-  spatwt_PA$Patient <- factor(output$Patient[match(spatwt_PA$sample_id, output$meta_data$sample_id)], levels = unique(output$Patient))
-  
-  # Initialize empty matrices
-  spatwt_pan <- c()
-  spatwt_liv <- c()
-  
-  # Calculate means for Pancreas
-  for (i in matchedPA) {
-    tmp <- apply(spatwt_PA[spatwt_PA$Site == "Pancreas" &
-                             spatwt_PA$Patient == i, clusterlevels], 2, mean)
-    spatwt_pan <- cbind(spatwt_pan, tmp)
-  }
-  colnames(spatwt_pan) <- paste0(matchedPA, "_P")
-  
-  # Calculate means for Liver
-  for (i in matchedPA) {
-    tmp <- apply(spatwt_PA[spatwt_PA$Site == "Liver" &
-                             spatwt_PA$Patient == i, clusterlevels], 2, mean)
-    spatwt_liv <- cbind(spatwt_liv, tmp)
-  }
-  colnames(spatwt_liv) <- paste0(matchedPA, "_L")
-  
-  # Compute log2 fold-change
-  FC_result <- log2(spatwt_liv / spatwt_pan)
-  FC_result[FC_result == 'Inf'] <- NA
-  FC_result[FC_result == '-Inf'] <- NA
-  FC_result[is.na(FC_result)] <- NA
-  colnames(FC_result) <- matchedPA
-  
-  # Define palette and breaks
-  my_palette <- colorRampPalette(c("blue", "white", "red"))(100)
-  max_abs <- max(abs(FC_result[majorCelltypes, ]), na.rm = TRUE)
-  breaks <- seq(-max_abs, max_abs, length.out = 101)
-  
-  ht <- ComplexHeatmap::pheatmap(as.matrix(FC_result[majorCelltypes, ]),
-                                 name = "Cellular\nInfluence\nlog2FC",
-                                 color = my_palette,
-                                 breaks = breaks,
-                                 cluster_rows = TRUE,
-                                 cluster_cols = FALSE,
-                                 show_colnames = TRUE,
-                                 show_rownames = TRUE,
-                                 scale = "none",
-                                 border_color = "black",
-                                 cellwidth = 10,
-                                 cellheight = 10,
-                                 treeheight_row = 20,
-                                 treeheight_col = 20)
-  
-  # Generate heatmap and save to PDF
-  pdf(paste0('./output/log2FC_spatwt_', celltype, '.pdf'), height = 5, width = 5)
-  draw(ht)
-  dev.off()
-}
+marker_summary_2 <- df_filtered %>%
+  dplyr::select(all_of(selected_markers), Patient, Site) %>%
+  group_by(Patient, Site) %>%
+  summarise(across(all_of(selected_markers), mean, na.rm = TRUE), .groups = "drop")
 
-# Define the list of marker Expr objects 
-new_expr_id<- as.data.frame(new_expr)
-new_expr_id$sample_id <- output$sample_ids
-expr_list<- list(new_expr_id[idx_tum,] , new_expr_id[idx_cd8T,])  
-output_names <- c("tumor", "cd8T")
-markers<- list(c("CD86","CK", "KI67", "PDL1", "VISTA"),
-               c("ICOS", "GranzB", "PD1", "HLADR", 
-                 "TIGIT", "LAG3", "PTPN22", "pSTAT3", "TIM3"))  
+merged_summary2 <- left_join(celltype_summary_2, marker_summary_2, by = c("Patient",  "Site"))
 
-for (idx in seq_along(expr_list)) {
-  expr_PA <- expr_list[[idx]]  
-  colnames(expr_PA)<- gsub("pSTAT", "pSTAT3", colnames(expr_PA))
-  colnames(expr_PA)<- gsub("Granzyme", "GranzB", colnames(expr_PA))
-  
-  expr_PA$Site <- factor(output$Site[match(expr_PA$sample_id, output$meta_data$sample_id)], levels = sitelevels)
-  expr_PA$Patient <- factor(output$Patient[match(expr_PA$sample_id, output$meta_data$sample_id)], levels = unique(output$Patient))
-  
-  
-  celltype <- output_names[idx]  
-  majorMarkers<- markers[[idx]]
-  
-  # Initialize empty matrices
-  expr_pan <- c()
-  expr_liv <- c()
-  
-  # Calculate means for Pancreas
-  for (i in matchedPA) {
-    tmp <- apply(expr_PA[expr_PA$Site == "Pancreas" &
-                           expr_PA$Patient == i, majorMarkers], 2, mean)
-    expr_pan <- cbind(expr_pan, tmp)
-  }
-  colnames(expr_pan) <- paste0(matchedPA, "_P")
-  
-  # Calculate means for Liver
-  for (i in matchedPA) {
-    tmp <- apply(expr_PA[expr_PA$Site == "Liver" &
-                           expr_PA$Patient == i, majorMarkers], 2, mean)
-    expr_liv <- cbind(expr_liv, tmp)
-  }
-  colnames(expr_liv) <- paste0(matchedPA, "_L")
-  
-  # Compute log2 fold-change
-  FC_result <- log2(expr_liv / expr_pan)
-  FC_result[FC_result == 'Inf'] <- NA
-  FC_result[FC_result == '-Inf'] <- NA
-  FC_result[is.na(FC_result)] <- NA
-  colnames(FC_result) <- matchedPA
-  
-  # Define palette and breaks
-  my_palette <- colorRampPalette(c("blue", "white", "red"))(100)
-  max_abs <- max(abs(FC_result[majorMarkers, ]), na.rm = TRUE)
-  breaks <- seq(-max_abs, max_abs, length.out = 101)
-  
-  ht <- ComplexHeatmap::pheatmap(as.matrix(FC_result[majorMarkers, ]),
-                                 name = "Marker\nExpression\nlog2FC",
-                                 color = my_palette,
-                                 breaks = breaks,
-                                 cluster_rows = TRUE,
-                                 cluster_cols = FALSE,
-                                 show_colnames = TRUE,
-                                 show_rownames = TRUE,
-                                 scale = "none",
-                                 border_color = "black",
-                                 cellwidth = 10,
-                                 cellheight = 10,
-                                 treeheight_row = 20,
-                                 treeheight_col = 20)
-  
-  # Generate heatmap and save to PDF
-  pdf(paste0('./output/log2FC_expr_', celltype, '.pdf'), height = 5, width = 5)
-  draw(ht)
-  dev.off()
-}
+merged_summary2$Patient<- factor(merged_summary2$Patient, 
+                                 levels=c("PA2", "PA5", "PA6", "PA8", "PA10", "PA11"))
 
+
+merged_summary2_melt <- melt(as.data.frame(merged_summary2))
+
+merged_summary2_melt <- merged_summary2_melt%>% 
+  dplyr:: filter(variable%in%c("CD8T", "CD4T", "Treg", "NK", 
+                               "M_I", "M_II", "M_III", "Neutrophil", 
+                               "Str_I", "Str_II", "Str_III", "Str_IV", 
+                               "CK", "PDL1", "CD86", "VISTA"))
+
+highlight_vars <- c("CK", "PDL1", "CD86", "VISTA")
+merged_summary2_melt$variable <- factor(merged_summary2_melt$variable)
+strip_colors <- ifelse(levels(merged_summary2_melt$variable) %in% highlight_vars,
+                       "#CFA79D", "gray90")
+
+
+pdf('./output/FigureS4E.pdf', height=4, width=9)
+ggplot(merged_summary2_melt, aes(x=Site, y=value, group=Patient))+
+  geom_line(aes(color=Patient), size = 1) + 
+  geom_point(aes(shape=Patient))+ 
+  facet_wrap2(~variable, scales = "free_y", ncol = 8,
+              strip = strip_themed(
+                background_x = elem_list_rect(fill = strip_colors)
+              )) +
+  theme_bw() +
+  ylab("Average value")+
+  scale_x_discrete(labels = c("PRI", "MET")) + 
+  theme(axis.text.x = element_text(size=14, angle=45,  hjust =1), 
+        legend.position = "top", 
+        legend.direction = "horizontal")+
+  guides(color = guide_legend(nrow = 1), shape = guide_legend(nrow = 1))
+dev.off()
 
 
