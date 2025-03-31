@@ -64,6 +64,19 @@ colnames(Specimen_designation)[1]<-"sample_id"
 
 # Having backup_output.rds, start from here ====================================
 
+# create output folder if running for the first time 
+current_dir <- getwd()
+output_folder <- file.path(current_dir, "output")
+
+# Check if the folder exists
+if (!dir.exists(output_folder)) {
+  # Create the folder if it does not exist
+  dir.create(output_folder)
+  cat("output folder is created.\n")
+} else {
+  cat("output folder already exists.\n")
+}
+
 ## load data ====
 output <- readRDS('./backup/backup_output.rds')
 new_expr<- readRDS('./backup/new_expr.rds')
