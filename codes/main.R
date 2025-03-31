@@ -34,6 +34,7 @@ library(SummarizedExperiment)
 library(DESeq2)
 library(survival)
 library(survminer)
+library(ggh4x)
 
 ## load functions ====
 source('codes/functions/returnfcs.R')
