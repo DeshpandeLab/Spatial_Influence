@@ -122,13 +122,37 @@ summary_df_2 <- data_for_violin %>%
   dplyr::summarise(
     mean_value = mean(value))
 
+selected_celltypes <- c("Treg","M_I", "Str_I", "Str_II")
+
+# Cellular influences on Tumors (Compare between Sites)
+pdf('./output/Figure4D.pdf', height=5, width=3)
+p4D<- ggplot(summary_df_2[summary_df_2$variable%in%selected_celltypes, ], aes(x = type, y = mean_value, fill = Site)) +
+  geom_violin(alpha = 0.6, position = position_dodge(width = 0.8)) +
+  geom_boxplot(width = 0.3, position = position_dodge(width = 0.8), alpha = 0.5) +
+  stat_compare_means(
+    method = "wilcox.test",  
+    paired = F, 
+    label = "p.signif", 
+    hide.ns = T, 
+    size=5
+  ) +
+  scale_y_continuous(expand = expansion(mult = c(0.1, 0.2))) +
+  facet_wrap(~variable, scales = "free", ncol = 2) +  
+  theme_bw() + 
+  ylab("Mean Cellular Influences") +
+  xlab("Tumor type")+ 
+  theme(legend.position = "top", 
+        axis.text = element_text(size=12, color="black"), 
+        axis.title=element_text(size=12, color="black"))
+print(p4D)
+dev.off()
+
 
 selected_markers <- c("CK","CD86")
 
-
 # Tumor Marker expression level between Sites
-pdf('./output/Figure4D.pdf', height=2.5, width=3)
-p4D<- ggplot(summary_df_2[summary_df_2$variable%in%selected_markers, ], aes(x = type, y = mean_value, fill = Site)) +
+pdf('./output/Figure4E.pdf', height=2.5, width=3)
+p4E<- ggplot(summary_df_2[summary_df_2$variable%in%selected_markers, ], aes(x = type, y = mean_value, fill = Site)) +
   geom_violin(alpha = 0.6, position = position_dodge(width = 0.8)) +
   geom_boxplot(width = 0.3, position = position_dodge(width = 0.8), alpha = 0.5) +
   stat_compare_means(
@@ -146,35 +170,9 @@ p4D<- ggplot(summary_df_2[summary_df_2$variable%in%selected_markers, ], aes(x = 
   theme(legend.position = "top", 
         axis.text = element_text(size=12, color="black"), 
         axis.title=element_text(size=12, color="black"))
-print(p4D)
-dev.off()
-
-
-selected_celltypes <- c("Treg","M_I", "Str_I", "Str_II","Tumor")
-
-
-# Cellular influences on Tumors (Compare between Sites)
-pdf('./output/Figure4E.pdf', height=2.5, width=6)
-p4E<- ggplot(summary_df_2[summary_df_2$variable%in%selected_celltypes, ], aes(x = type, y = mean_value, fill = Site)) +
-  geom_violin(alpha = 0.6, position = position_dodge(width = 0.8)) +
-  geom_boxplot(width = 0.3, position = position_dodge(width = 0.8), alpha = 0.5) +
-  stat_compare_means(
-    method = "wilcox.test",  
-    paired = F, 
-    label = "p.signif", 
-    hide.ns = T, 
-    size=5
-  ) +
-  scale_y_continuous(expand = expansion(mult = c(0.1, 0.2))) +
-  facet_wrap(~variable, scales = "free", ncol = 5) +  
-  theme_bw() + 
-  ylab("Mean Cellular Influences") +
-  xlab("Tumor type")+ 
-  theme(legend.position = "top", 
-        axis.text = element_text(size=12, color="black"), 
-        axis.title=element_text(size=12, color="black"))
 print(p4E)
 dev.off()
+
 
 site_comparison<- list(c("Pancreas", "Liver"))
 pdf('./output/tumor_BK.pdf', height=10, width=10)
@@ -383,7 +381,7 @@ for (data_type in data_types) {
       simple_anno_size = unit(0.2, "cm")
     )
 
-    pdf(paste0('./output/Figure4F_',data_type, '_tumor.pdf'), height=6, width=7)
+    pdf(paste0('./output/Figure4G_',data_type, '_tumor.pdf'), height=6, width=7)
     ht <- Heatmap(
       as.matrix(t(rho_matrix)),
       name = "Spearman\nRho",
@@ -435,7 +433,7 @@ plot_multiple_probability_masks(coord_data = mask_data,
                                 probability_mask_folder = 'Probability_masks/',
                                 colorassigned = colorassigned,
                                 ncols = 4, 
-                                filenameprefix= "Figure4G_")
+                                filenameprefix= "Figure4F_")
 
 
 index <- which(output$cell_clustering2m=="Tumor"&
@@ -446,6 +444,8 @@ plot_marker_level(coord_data = coord[index, ],
                   uniqID = select_sampID,
                   marker ="CK", 
                   filenameprefix="Tumor_CK",
+                  height_size = 5, 
+                  width_size = 18, 
                   ncols=4)
 
 # Supplementary Figure 4
@@ -488,9 +488,29 @@ merged_summary$type<- factor(merged_summary$type,
                                         "CD8T-PDL1+",
                                         "CD8T+PDL1-"))
 
+# PDL1 expr for tumor types (individual tumor cells)
+tumor_types<- merged_summary[, c("sample_id", "type")]
 
-pdf('./output/FigureS4A.pdf', height=4, width=4)
-pS4A<- ggplot(merged_summary,
+df_joined<- left_join(df, tumor_types, by="sample_id")
+
+
+pdf('./output/FigureS4A.pdf', height=3, width=4)
+pS4A<- ggplot(df_joined,
+              aes(x=type.y, y=PDL1, fill=type.y)) +
+  geom_violin() +
+  theme_bw()+ 
+  theme(strip.background = element_blank(),
+        strip.text = element_text(size = 15),
+        axis.text.x = element_text(angle=45, color="black", hjust=1),
+        plot.title = element_text(hjust = 0.5))+
+  facet_wrap(~Site) + 
+  xlab("type")
+print(pS4A)
+dev.off()
+
+
+pdf('./output/FigureS4C.pdf', height=4, width=4)
+pS4C<- ggplot(merged_summary,
        aes(x=type, y=VISTA, color=type)) +
   geom_boxplot(alpha=0.5) +
   geom_jitter(width=0.2, alpha=0.6, size=1)+ 
@@ -500,7 +520,7 @@ pS4A<- ggplot(merged_summary,
         axis.text.x = element_text(angle=45, color="black", hjust=1),
         plot.title = element_text(hjust = 0.5))+
   facet_wrap(~Site)
-print(pS4A)
+print(pS4C)
 dev.off()
 
 
@@ -520,8 +540,8 @@ ggplot(merged_summary,
   facet_wrap(~Site)
 
 
-pdf('./output/FigureS4B.pdf', height=4, width=5)
-pS4B<- ggplot(merged_summary,
+pdf('./output/FigureS4D.pdf', height=4, width=5)
+pS4D<- ggplot(merged_summary,
        aes(x= VISTA, y=Neutrophil, color=type)) +
   geom_point(alpha=0.5) +
   theme_bw() + 
@@ -535,7 +555,7 @@ pS4B<- ggplot(merged_summary,
   #         size=3) + 
   geom_smooth(method=lm, aes(fill=type), alpha=0.2)+ 
   facet_wrap(~Site)
-print(pS4B)
+print(pS4D)
 dev.off()
 
 
@@ -665,7 +685,7 @@ coxph(Surv(overall_survival,deceased) ~ counts, data=selcted_gene)
 fit = survfit(Surv(overall_survival, deceased) ~ strata, data=selcted_gene)
 
 # Kaplan Meier plot
-pdf('./output/FigureS4C.pdf', height=5, width=5)
+pdf('./output/FigureS4E.pdf', height=5, width=5)
 pS4C<- ggsurvplot(fit, data=selcted_gene, pval=T, risk.table=T, risk.table.col="strata", xlab="Time (days)")
 print(pS4C)
 dev.off()
@@ -701,8 +721,8 @@ Tcell_ratio_PA[Tcell_ratio_PA$Site == "Liver", "Site"] <- "MET"
 Tcell_ratio_PA$Site <- factor(Tcell_ratio_PA$Site, levels=c("PRI", "MET"))
 
 
-pdf('./output/FigureS4D.pdf', height=3, width = 3)
-pS4D<- ggplot(Tcell_ratio_PA, aes(x = Site, y = ratio, fill = Site)) +
+pdf('./output/FigureS4F.pdf', height=3, width = 3)
+pS4F<- ggplot(Tcell_ratio_PA, aes(x = Site, y = ratio, fill = Site)) +
   geom_violin(alpha=0.6)+
   geom_boxplot(width=0.3, fill = NA, color = "black", alpha = 0.5)+
   geom_point(aes(shape = Patient),  # Map Patient to shape
@@ -721,7 +741,7 @@ pS4D<- ggplot(Tcell_ratio_PA, aes(x = Site, y = ratio, fill = Site)) +
   theme(axis.text.x = element_text(size=14, angle=45,  hjust =1), 
         axis.text = element_text(size=14, color="black"),
         axis.title = element_text(size=14, color="black"))
-print(pS4D)
+print(pS4F)
 dev.off()
 
 # observe cellular influence and marker expr level change by Patient (average by patient)
@@ -752,17 +772,17 @@ merged_summary2_melt <- melt(as.data.frame(merged_summary2))
 merged_summary2_melt <- merged_summary2_melt%>% 
   dplyr:: filter(variable%in%c("CD8T", "CD4T", "Treg", "NK", 
                                "M_I", "M_II", "M_III", "Neutrophil", 
-                               "Str_I", "Str_II", "Str_III", "Str_IV", 
-                               "CK", "PDL1", "CD86", "VISTA"))
+                               "Str_I", "Str_II", "Str_III",  
+                               "CK", "PDL1", "CD86", "VISTA", "KI67"))
 
-highlight_vars <- c("CK", "PDL1", "CD86", "VISTA")
+highlight_vars <- c("CK", "PDL1", "CD86", "VISTA", "KI67")
 merged_summary2_melt$variable <- factor(merged_summary2_melt$variable)
 strip_colors <- ifelse(levels(merged_summary2_melt$variable) %in% highlight_vars,
                        "#CFA79D", "gray90")
 
 
-pdf('./output/FigureS4E.pdf', height=4, width=9)
-pS4E<- ggplot(merged_summary2_melt, aes(x=Site, y=value, group=Patient))+
+pdf('./output/FigureS4G.pdf', height=4, width=9)
+pS4G<- ggplot(merged_summary2_melt, aes(x=Site, y=value, group=Patient))+
   geom_line(aes(color=Patient), size = 1) + 
   geom_point(aes(shape=Patient))+ 
   facet_wrap2(~variable, scales = "free_y", ncol = 8,
@@ -776,7 +796,7 @@ pS4E<- ggplot(merged_summary2_melt, aes(x=Site, y=value, group=Patient))+
         legend.position = "top", 
         legend.direction = "horizontal")+
   guides(color = guide_legend(nrow = 1), shape = guide_legend(nrow = 1))
-print(pS4E)
+print(pS4G)
 dev.off()
 
 
