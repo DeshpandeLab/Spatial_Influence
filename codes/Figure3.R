@@ -87,22 +87,22 @@ coord <- coord[coord$sample_id!=43, ]
 coord[coord$cluster=="CD8T", "CN"]<- CD8T_cn_2m
 
 # Figure 3D (range +/-50)
-for(i in 1:4){
+for(i in 1:8){
   plot_zoomed_CN(sample_id = 51,
                  coord= coord,
                  colorassigned = colorassigned,
-                 show = 2,
+                 show = 1,
                  seed=1234,
                  range=50,
                  CNnum = i,
                  ncols=1)
 }
 
-for(i in 5:8){
+for(i in 1:8){
   plot_zoomed_CN(sample_id = 26,
                  coord= coord,
                  colorassigned = colorassigned,
-                 show = 2,
+                 show = 1,
                  seed=1234,
                  range=50,
                  CNnum = i,
