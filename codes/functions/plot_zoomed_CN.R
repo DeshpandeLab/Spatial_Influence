@@ -48,6 +48,7 @@ plot_zoomed_CN <- function(sample_id = 26,
     theme(strip.background = element_blank(), 
           strip.text = element_blank(), 
           aspect.ratio = 1)+
+    scale_y_reverse()+
     scale_color_manual(values = colorassigned, name="cellTypes") +
     facet_wrap(~show, scales = "free", ncol=ncols)
   print(p)

@@ -81,22 +81,22 @@ coord <- coord[coord$sample_id!=43, ]
 coord[coord$cluster=="CD8T", "CN"]<- CD8T_cn_2m
 
 # Figure 3D (range +/-50)
-for(i in 1:4){
+for(i in 1:8){
   plot_zoomed_CN(sample_id = 51,
                  coord= coord,
                  colorassigned = colorassigned,
-                 show = 2,
+                 show = 1,
                  seed=1234,
                  range=50,
                  CNnum = i,
                  ncols=1)
 }
 
-for(i in 5:8){
+for(i in 1:8){
   plot_zoomed_CN(sample_id = 26,
                  coord= coord,
                  colorassigned = colorassigned,
-                 show = 2,
+                 show = 1,
                  seed=1234,
                  range=50,
                  CNnum = i,
@@ -213,7 +213,7 @@ expr_tum$Patient <- factor(df_output$Patient[match(expr_tum$sample_id,df_output$
 expr_4s<- expr_tum[subset, ]
 
 
-tum_markers<- c("KI67", "CK", "CD86", "VISTA", "PDL1")
+tum_markers<- c("CK", "CD86", "VISTA", "KI67", "PDL1")
 
 numClust=12
 tumor_cn<- do_CN_analysis(spatwt_df = data4s,
@@ -349,11 +349,11 @@ summary_df_line$type<- factor(summary_df_line$type,
 
 summary_df_line$variable<- factor(summary_df_line$variable, levels=tum_markers)
 
-pdf('./output/FigureS3E.pdf', height=5, width=9)
+pdf('./output/FigureS3E.pdf', height=7, width=6)
 pS3E<- ggplot(summary_df_line, aes(x = type, y = median_value, color = Site, group = Site)) +
   geom_line(size = 1) +  # Line for the mean value
   geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci, fill = Site), alpha = 0.2, color = NA) +
-  facet_wrap(~ variable, scales = "free_y") +  # Facet by Marker
+  facet_wrap(~ variable, scales = "free_y", ncol=2) +  # Facet by Marker
   theme_minimal() + 
   labs(
     x = "TME",
@@ -362,9 +362,10 @@ pS3E<- ggplot(summary_df_line, aes(x = type, y = median_value, color = Site, gro
     fill = "Site"
   ) +
   theme(
-    legend.position = "right",
+    legend.position = "none",
     strip.text = element_text(size = 14),
     axis.text = element_text(size = 10),
+    axis.text.x = element_text(angle=45,  hjust =1),
     axis.title = element_text(size = 12)
   )+ 
   geom_hline(data= summary_df_line, 

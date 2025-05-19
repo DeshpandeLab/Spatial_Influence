@@ -48,6 +48,7 @@ p5B<-ggplot(dd[dd$sample_id%in%c("18", "25"),], aes(x=X_position, y=Y_position, 
   geom_point(size = 0.5)+ 
   scale_color_manual(values = c("BD" = "black", "BK" = "#DF536C")) + 
   theme_void() + 
+  scale_y_reverse()+
   theme(legend.position = "none",)+
   facet_wrap(~sample_id, ncol=1)
 print(p5B)
@@ -482,13 +483,11 @@ merged_summary$type<- factor(merged_summary$type,
 # PDL1 expr for tumor types (individual tumor cells)
 tumor_types<- merged_summary[, c("sample_id", "type")]
 
-df_joined<- left_join(df, tumor_types, by="sample_id")
-
-
 pdf('./output/FigureS4A.pdf', height=3, width=4)
-pS4A<- ggplot(df_joined,
-              aes(x=type.y, y=PDL1, fill=type.y)) +
-  geom_violin() +
+pS4A<- ggplot(merged_summary,
+              aes(x=type, y=PDL1, color=type)) +
+  geom_boxplot(alpha=0.5) +
+  geom_jitter(width=0.2, alpha=0.6, size=1)+ 
   theme_bw()+ 
   theme(strip.background = element_blank(),
         strip.text = element_text(size = 15),
@@ -684,11 +683,11 @@ dev.off()
 
 ## Matched Patients ==== 
 # matched patients 
-matchedPA<- intersect(unique(output$Patient[output$Site=="Pancreas"]), 
-                      unique(output$Patient[output$Site=="Liver"]))
+matchedPA<- intersect(unique(df_output$Patient[df_output$Site=="Pancreas"]), 
+                      unique(df_output$Patient[df_output$Site=="Liver"]))
 
-matched_sampID<- unique(output$meta_data$sample_id[output$Patient%in%matchedPA&
-                                                     output$meta_data$sample_id!=43])
+matched_sampID<- unique(df_output$meta_data$sample_id[df_output$Patient%in%matchedPA&
+                                                        df_output$meta_data$sample_id!=43])
 
 ## Figure S4F-G
 # observe cellular influence and marker expr level change by Patient (average by patient)

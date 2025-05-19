@@ -318,7 +318,7 @@ spatwt <- do_CI_quantification(expr = df_rm_2m,  # should contain sample_id, X, 
                                sigma = 10) 
 spatwt$sample_id<- factor(spatwt$sample_id, levels=samplevels)
 # save spatwt 
-saveRDS(spatwt, "./backup/spatwt.rds")
+# saveRDS(spatwt, "./backup/spatwt.rds")
 
 df_cci <- spatwt%>% rownames_to_column("ref")
 df_cci$ref <- gsub(".*:", "", df_cci$ref)
