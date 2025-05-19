@@ -250,3 +250,7 @@ unique(output$cell_clustering2m)
 
 # overwrite output with cellclustering_2m (specific cell type annotation)
 saveRDS(output, 'backup/backup_output.rds')
+
+df_output<- data.frame(fsApply(output$fcs1, exprs)[, c("X_position", "Y_position")], sample_id = output$sample_ids, 
+                       cluster = output$cell_clustering2m, cell_clustering1m=output$cell_clustering1m)
+saveRDS(df_output, './backup/df_output.rds')
