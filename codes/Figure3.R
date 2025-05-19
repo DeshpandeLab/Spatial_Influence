@@ -1,382 +1,481 @@
 #============================#
-###        Figure 3        ###
+###       Figure 3         ###
 #============================#
 
-## CD8+T TME analysis====
-spatwt<- readRDS('./backup/spatwt.rds')
+# calculate spatwt
 
-# remove core43 
-idx <- which(output$cell_clustering2m=="CD8T"&
-               output$sample_ids!=43)
+## Spatial weight calculations for each core =====
+sampleID <- unique(df_output$sample_id)
 
-spatwt_df_cd8T_2m<- spatwt[idx, ]
-spatwt_df_cd8T_2m$Site<- factor(output$Site[match(spatwt_df_cd8T_2m$sample_id,output$meta_data$sample_id)], levels=sitelevels)
-spatwt_df_cd8T_2m$sample_id<- factor(spatwt_df_cd8T_2m$sample_id, levels=unique(spatwt_df_cd8T_2m$sample_id))
-spatwt_df_cd8T_2m$Patient <- factor(output$Patient[match(spatwt_df_cd8T_2m$sample_id,output$meta_data$sample_id)], levels=unique(output$Patient))
-
-expr_cd8T<- as.data.frame(new_expr[idx,])
-expr_cd8T$sample_id<- spatwt_df_cd8T_2m$sample_id
-expr_cd8T$Patient<- spatwt_df_cd8T_2m$Patient
-expr_cd8T$Site <- spatwt_df_cd8T_2m$Site
+df_rm <- df_output%>% dplyr::select(-cluster)
+colnames(df_rm)[4]<- "celltype"
+# CI quantification for broader celltypes
+spatwt_1m <- do_CI_quantification(expr = df_rm,  # should contain sample_id, X, Y position, celltype in the df
+                                  sampleID = sampleID,
+                                  kernels ="gaussian",
+                                  clusterlevels = unique(df_output$cell_clustering1m),
+                                  sigma = 10) 
+spatwt_1m$sample_id<- factor(spatwt_1m$sample_id, levels=samplevels)
 
 
-
-colnames(expr_cd8T)<- gsub("pSTAT", "pSTAT3", colnames(expr_cd8T))
-colnames(expr_cd8T)<- gsub("Granzyme", "GZMB", colnames(expr_cd8T))
-
-
-funcMarkers<- c("GZMB", "ICOS", "LAG3", "PD1", "TIGIT", "TIM3", "HLADR", "PTPN22", "pSTAT3")
-
-CD8T_cn_2m<-do_CN_analysis(spatwt_df = spatwt_df_cd8T_2m,
-                           expr0 = expr_cd8T,
-                           funcMarkers = funcMarkers,
-                           clusterby = clusterlevels,
-                           numClusters =8, 
-                           scaleOption = F,
-                           rmCN = FALSE,  # default = FALSE 
-                           filenameprefix = "Figure3_")
-
-
-# CN cell mask 
-mask_data <- data.frame(sample_id = output$sample_ids, cluster = output$cell_clustering2m)
-mask_data$CN<-"others"
-mask_data <- mask_data[mask_data$sample_id!=43, ] 
-mask_data[mask_data$cluster=="CD8T", "CN"]<- CD8T_cn_2m
-
-
-# Figure 3C
-# core 51 (pancreas)
-plot_CN_cellmask2(sample_id = 51, 
-                  coord= mask_data,
-                  numClusters = 8,
-                  path="./Probability_masks/")
-# core 26 (Liver)
-plot_CN_cellmask2(sample_id = 26, 
-                  coord= mask_data,
-                  numClusters = 8,
-                  path="./Probability_masks/")
-
-# plot zoomed CNs - validation of CN
-colorassigned<- c("#1f77b4",#CD8T
-                  "#ff6f0e",#CD4T
-                  "#ff9f0e",#Treg
-                  "#2ca02c",#M_I
-                  "#d62728",#M_II
-                  "#BBE5E9",#Str_I
-                  "#FEE480",#Str_II
-                  "#9C4DF5",#Neutrophil 
-                  "#d3d3d3",#Tumor
-                  rep("#5c6068",12))#others
-
-
-majorCelltypes<- c("CD8T", "CD4T", "Treg", "M_I", "M_II", 
-                   "Str_I", "Str_II", "Neutrophil", "Tumor")
-
-names(colorassigned)<-c(majorCelltypes,
-                        clusterlevels[!clusterlevels %in% majorCelltypes])
-
-# flip y-axis to match cell mask & MCD image
-coord <- fsApply(output$fcs1, exprs)[, c("X_position", "Y_position")]
-coord <-as.data.frame(coord)
-coord$sample_id <- output$sample_ids
-coord$cluster <- output$cell_clustering2m
-coord$Y_position<- 1000 - coord$Y_position #flip coordinate to match MCD
-
-coord$CN<-"others"
-coord <- coord[coord$sample_id!=43, ] 
-coord[coord$cluster=="CD8T", "CN"]<- CD8T_cn_2m
-
-# Figure 3D (range +/-50)
-for(i in 1:8){
-  plot_zoomed_CN(sample_id = 51,
-                 coord= coord,
-                 colorassigned = colorassigned,
-                 show = 1,
-                 seed=1234,
-                 range=50,
-                 CNnum = i,
-                 ncols=1)
-}
-
-for(i in 1:8){
-  plot_zoomed_CN(sample_id = 26,
-                 coord= coord,
-                 colorassigned = colorassigned,
-                 show = 1,
-                 seed=1234,
-                 range=50,
-                 CNnum = i,
-                 ncols=1)
-}
-
-
-# abundance plot of CD8T CNs for each core
-cd8T_table <- as.data.frame(table(spatwt_df_cd8T_2m$sample_id, CD8T_cn_2m))
-names(cd8T_table)<-c("sample_id", "CN", "Freq")
-
-cd8T_table$Site<-factor(output$Site[match(cd8T_table$sample_id, output$meta_data$sample_id)], levels=sitelevels)
-
-CN_colors <- dittoColors()[c(1:length(unique(cd8T_table$CN)))]
+## KNN ==== 
+compute_knn<- function(data, cell_col, clusterlevels, x_col, y_col, k) {
   
-names(CN_colors)<-c(1:length(unique(cd8T_table$CN)))
-
-#CN_abundance_by_Cores 
-ggplot(cd8T_table, aes(x=sample_id, y=Freq, fill=CN))+
-  geom_col(position="fill", width = 0.8) +
-  scale_fill_manual(values = CN_colors) + 
-  theme_minimal()  + 
-  scale_y_continuous(expand = c(0, 0),labels = function(x) paste0(x * 100)) +
-  labs(x = "", y = "")+ 
-  theme(plot.title = element_text(size = 10,  hjust = 0.5), 
-        axis.text=element_text(size=10, color = "black"),
-        axis.text.x = element_text(angle=90, vjust =0.5, size = 6), 
-        legend.position="right", 
-        strip.background = element_blank(), 
-        strip.text = element_text(size=10, color = "black"))+ 
-  guides(fill = guide_legend(ncol = 1)) +  
-  facet_wrap(~Site, ncol=2, scales = "free_x", drop = TRUE)
-
-matched_patients<-c("2","3","6","8","13","14","16","17","18","25","39","46","47","53","54","56","59")
-# CN_abundance_by_Cores for matched patients only 
-ggplot(cd8T_table[cd8T_table$sample_id%in%matched_patients,], aes(x=sample_id, y=Freq, fill=CN))+
-  geom_col(position="fill", width = 0.8) +
-  scale_fill_manual(values = CN_colors) + 
-  theme_minimal()  + 
-  scale_y_continuous(expand = c(0, 0),labels = function(x) paste0(x * 100)) +
-  labs(x = "", y = "")+ 
-  theme(plot.title = element_text(size = 10,  hjust = 0.5), 
-        axis.text=element_text(size=10, color = "black"),
-        axis.text.x = element_text(angle=90, vjust =0.5, size = 6), 
-        legend.position="right", 
-        strip.background = element_blank(), 
-        strip.text = element_text(size=10, color = "black"))+ 
-  guides(fill = guide_legend(ncol = 1)) +  
-  facet_wrap(~Site, ncol=2, scales = "free_x", drop = TRUE)
+  ## data frame initialization
+  knn_weights<- data.frame(matrix(0, nrow = nrow(data), ncol = length(clusterlevels)))
+  colnames(knn_weights) <- clusterlevels
+  
+  nn_indices<- data.frame(matrix(0, nrow = nrow(data), ncol = k))
+  colnames(nn_indices) <- paste0("N", 1:k)
+  
+  ## compute knn
+  knn_result <- get.knn(data[, c(x_col, y_col)], k = k)
+  # knn_result$nn.index: index of the cell (10 columns with increasing dist neighbors for 10-nn)
+  # knn_result$nn.dist : distance of the cell from the reference cell 
+  
+  # add k-neighbors to the matrix
+  for (i in 1:nrow(knn_result$nn.index)) {
+    neighbors <- knn_result$nn.index[i, ]
+    
+    # nearest neighbor indices
+    nn_indices[i, ] <- as.character(rownames(data)[neighbors])
+    
+    for (neighbor in neighbors) {
+      celltype <- as.character(data[neighbor, cell_col])
+      knn_weights[i, celltype] <- knn_weights[i, celltype] + 1
+    }
+  }
+  
+  # calculate fraction of neighbors 
+  knn_weights<- knn_weights/k  # divide by the k number 
+  rownames(knn_weights)<- rownames(data)
+  rownames(nn_indices) <- rownames(data)
+  
+  return(list(knn_weights = knn_weights, nn_indices = nn_indices))
+}
 
 
+knnwt<- c()
+nn_list<- c()
+for (i in sampleID){   # by the core
+  expr_k<- df_output[df_output$sample_id==i, ]
+  dd <- expr_k[, c("cell_clustering1m", "X_position", "Y_position")]
+  rownames(dd)<- paste0(rownames(expr_k), ":", expr_k$cell_clustering1m)
+  
+  result<- compute_knn(data = dd, 
+                       cell_col = "cell_clustering1m", 
+                       clusterlevels= unique(df_output$cell_clustering1m), 
+                       x_col = "X_position", 
+                       y_col = "Y_position", 
+                       k = 10) # 10-nearest neighbors 
+  K <- result$knn_weights 
+  K$sample_id <- i 
+  knnwt<- rbind(knnwt, K)
+  
+  N <- result$nn_indices 
+  N$sample_id <- i
+  nn_list<- rbind(nn_list, N) 
+}
 
-# CN functional characteristic (CN relative)
+generate_neighborweights <- function(spatwt, knnwt, nn_type) {
+  # data.frame of gaussian and knn weights for each cell
+  wts <- lapply(
+    rownames(spatwt),
+    function(rowname) {
+      coi <- str_replace(nn_list[rowname, nn_type], ".*:", "")
+      
+      data.frame(
+        cellID = rowname,
+        weights = c(spatwt[rowname, coi], knnwt[rowname, coi]),
+        type = c("gaussian", "knn"),
+        neighbor = coi,
+        nn = nn_type,
+        stringsAsFactors = FALSE
+      )
+    }
+  ) %>% bind_rows()
+  return(wts)
+}
 
-markerExpr_cd8T <- expr_cd8T[, c(funcMarkers, "Site")]
-markerExpr_cd8T$CN <- as.factor(paste0("CN",CD8T_cn_2m))
-data_for_plot <- melt(markerExpr_cd8T)
 
-summary_df <- data_for_plot %>%
-  group_by(variable, CN, Site)%>% 
-  dplyr::summarise(
-    median_value = median(value))%>%
-  group_by(variable)%>% 
-  dplyr::mutate(scaled_median = as.numeric(scale(median_value)))
+## Contour plot for validation  ===== 
+# choose a core to test the result 
+select_core =51
 
-# scaled Marker expression (across CN)
-p<- ggplot(summary_df, aes(variable, scaled_median, fill = Site)) +
-  geom_bar(width = 1, stat = "identity", color = "black",  alpha = 0.7)  + 
-  scale_y_continuous(breaks = scales::breaks_width(1))+
-  geom_hline(yintercept = 0, color = "blue", size = 0.7) +
-  #scale_fill_manual(values = tme_colors) +  # Custom colors
-  theme_minimal() +
+
+# gaussian influence of T cells on Tumor 
+id_1 <- which(grepl("Tumor", rownames(spatwt_1m)))
+
+spatwt_filtered<- spatwt_1m[id_1, ]
+coord_filtered <- df_output[id_1, ]
+
+spatwt_Tcell_on_tum<- data.frame(Tcell = spatwt_filtered$CD8T+spatwt_filtered$CD4T, 
+                                 sample_id = spatwt_filtered$sample_id, 
+                                 X_position= coord_filtered$X_position,
+                                 Y_position= coord_filtered$Y_position)
+
+id_2 <- which(grepl("CD8T|CD4T", rownames(spatwt_1m)))
+
+coord_filtered_2<- df_output[id_2, ]
+max_range<- max(df_output$X_position, df_output$Y_position)
+
+flipped_y <- max_range - coord_filtered_2[coord_filtered_2$sample_id == select_core, ]$Y_position
+
+w2 <- ppp(coord_filtered_2[coord_filtered_2$sample_id==select_core, ]$X_position,
+          flipped_y, # flip y-axis
+          window = owin(c(0,max_range), c(0,max_range)))
+
+densityplot <- density(w2, sigma=7)
+plot(densityplot, main="T cell density")
+
+
+pdf('./output/Figure3A.pdf', width=10, height=5)
+par(mfrow = c(1, 2))
+plot(densityplot)
+
+# Adjust margins to make space for the legend on the right
+#par(mar = c(bottom, left, top, right))
+par(mar = c(6, 5, 5, 6.5))  # Add space on the right for the legend (last value = 8)
+
+colors <- colorRampPalette(c("grey", "red"), alpha = TRUE)(100)[as.numeric(cut(spatwt_Tcell_on_tum[spatwt_Tcell_on_tum$sample_id==select_core, ]$Tcell, 100))]
+plot(
+  spatwt_Tcell_on_tum[spatwt_Tcell_on_tum$sample_id==select_core, ]$X_position, 
+  -spatwt_Tcell_on_tum[spatwt_Tcell_on_tum$sample_id==select_core, ]$Y_position,  # flip y-axis
+  col = colors,         
+  pch = 20, cex = 0.6,             
+  xlab = "",ylab = "",
+  xaxt = "n",yaxt = "n",  
+  main = "Tumors with T-cell influence"
+)
+
+# Add the legend to the right
+image.plot(
+  zlim = range(spatwt_Tcell_on_tum$Tcell),  
+  legend.only = TRUE,               
+  col = colorRampPalette(c("grey", "red"), alpha = TRUE)(100),               
+  add = TRUE,                       
+  legend.mar = 5,  
+  legend.width = 2, 
+  legend.args = list(text="", side = 3, line = 2.5, cex = 5)
+)
+dev.off()
+
+
+## scatter plot gaussian vs Knn ==== 
+# Subset data for the specified core
+spatwt_subset <- spatwt_1m %>% dplyr::filter(sample_id == select_core)
+knnwt_subset <- knnwt %>% dplyr::filter(sample_id == select_core)
+
+
+knnwt_subset<- knnwt_subset[, colnames(spatwt_subset)]
+identical(rownames(spatwt_subset), rownames(knnwt_subset))
+identical(colnames(spatwt_subset), colnames(knnwt_subset))
+
+spatwt_subset_melted <- melt(subset(spatwt_subset, select = -sample_id))
+knn_wt_subset_melted<- melt(subset(knnwt_subset, select = -sample_id))
+
+
+colnames(spatwt_subset_melted)[2]<- "gaussian"
+colnames(knn_wt_subset_melted)[2]<-"knn"
+
+df<- cbind(spatwt_subset_melted, knn_wt_subset_melted[,"knn"])
+names(df)<-c("neighbor", "gaussian", "knn")
+
+
+## plot spatwt vs knn weights 
+coi <- c("CD8T", "Myeloid", "Stroma")
+df_sub <- df[df$neighbor%in%coi,]
+df_sub$neighbor<- factor(df_sub$neighbor, levels=coi)
+
+
+pdf('./output/Figure3B.pdf', height=2.7,width=7)
+p3B<- ggplot(df_sub, aes(x= knn, y=gaussian, color=neighbor) ) + 
+  geom_point() + 
+  labs(x = "knn proportion", y = "kernel-based influence") +
+  theme_minimal()+ 
   theme(
-    axis.text.x = element_text(size = 5),
-    axis.text = element_blank(),
-    axis.title = element_blank(),
-    axis.line = element_blank(),
-    plot.margin = unit(c(1, 1, 1, 1), "cm")
-  ) +
-  coord_polar() +
-  facet_wrap(~CN, ncol=3)
-
-pdf('./output/Figure3E.pdf', width=6, height = 8)
-print(p)
+    plot.title = element_text(size=13,color = "black"),
+    axis.title.x = element_text(size=12,color = "black"),
+    axis.title.y = element_text(size=12,color = "black"),
+    axis.text.x = element_text(size=9,color = "black"),
+    axis.text.y = element_text(size=9,color = "black"),
+    strip.text = element_text(size=12,color = "black"), 
+    legend.position = "none",
+  )+
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  facet_wrap(~neighbor, scales="free")
+print(p3B)
 dev.off()
 
 
-# Supplementary Figure 3
-## Tumor TME analysis====
-# filter all tumors (remove core 43)
-index <- which(output$cell_clustering2m=="Tumor"&
-                 output$sample_ids!=43)
+## calculate difference in KNN vs spatwt_1m ===== 
 
-spatwt_df_tum <- spatwt[index, ]
+nn_types <- paste0("N", 1:4)
+data <- nn_types %>%
+  lapply(function(nn_type) generate_neighborweights(spatwt_subset, knnwt_subset, nn_type)) %>%
+  bind_rows()
 
-# subset bulk tumor & tumor boundary 
-
-cutoff = 0.7
-subset <- which(spatwt_df_tum$Tumor<cutoff)
-
-
-# do CN analysis and get CN classification
-data4s <- spatwt_df_tum[subset, ]
-data4s$Site<- factor(output$Site[match(data4s$sample_id,output$meta_data$sample_id)], levels=sitelevels)
-data4s$Patient <- factor(output$Patient[match(data4s$sample_id,output$meta_data$sample_id)], levels=unique(output$Patient))
-
-
-
-expr_tum<- as.data.frame(new_expr[index,])
-expr_tum$sample_id <- factor(output$sample_ids[index], levels=samplevels)
-expr_tum$Site <- factor(output$Site[match(expr_tum$sample_id,output$meta_data$sample_id)], levels=sitelevels)
-expr_tum$Patient <- factor(output$Patient[match(expr_tum$sample_id,output$meta_data$sample_id)], levels=unique(output$Patient))
-
-expr_4s<- expr_tum[subset, ]
-
-
-tum_markers<- c("CK", "CD86", "VISTA", "KI67", "PDL1")
-
-numClust=12
-tumor_cn<- do_CN_analysis(spatwt_df = data4s,
-                          expr0 = expr_4s,
-                          funcMarkers = tum_markers,
-                          clusterby = clusterlevels,
-                          numClusters = numClust, 
-                          scaleOption = F, 
-                          rmCN = TRUE, 
-                          filenameprefix = "FigureS3_")
-
-
-#saveRDS(markerExpr, './backup/markerExpr.rds')
-markerExpr_tum <- expr_tum[, c(tum_markers, "Site", "sample_id")]
-markerExpr_tum$type <- "BK"
-markerExpr_tum[subset, "type"]<- tumor_cn
-
-CNprop <- as.data.frame(table(markerExpr_tum$type, markerExpr_tum$sample_id))
-names(CNprop)<-c("CN", "sample_id", "Freq")
-CNprop$Patient <- factor(output$Patient[match(CNprop$sample_id,output$meta_data$sample_id)], levels=unique(output$Patient))
-CNprop$Site <- factor(output$Site[match(CNprop$sample_id,output$meta_data$sample_id)], levels=sitelevels)
-
-# Compare Tumor CN composition between Sites
-CNprop_3 <- as.data.frame(CNprop)%>% 
-  dplyr::filter(CN!="BK")
-CNprop_3$CN <- factor(paste0("CN", CNprop_3$CN), levels=c(paste0("CN", 1:numClust)))
-
-CNprop_3 <- CNprop_3 %>% 
-  group_by(Site, CN, Patient, sample_id) %>% 
-  summarise(counts = sum(Freq))%>% 
-  ungroup()
-
-CNprop_3 <- CNprop_3 %>% 
-  group_by(sample_id) %>% 
-  mutate(total_counts = sum(counts))%>% 
-  ungroup()
-
-CNprop_3$prop<- CNprop_3$counts/CNprop_3$total_counts*100
-CNprop_3$Site<- factor(CNprop_3$Site, levels=sitelevels)
-
-site_comparison<-list(c("Pancreas", "Liver"))
-
-pdf('./output/FigureS3C.pdf', height=6, width =5)
-pS3C<- ggplot(CNprop_3, aes(x = Site, y = prop, fill = Site)) +
-  geom_violin(alpha=0.6)+
-  geom_boxplot(width=0.3, fill = NA, color = "black", alpha = 0.5)+
-  facet_wrap(~CN, scales = "free_y") + 
-  stat_compare_means(
-    method = "wilcox.test",
-    comparisons = site_comparison,
-    hide.ns = FALSE,
-    label="p.format")+ 
-  scale_y_continuous(expand = expansion(mult = c(0.1, 0.15)))+ 
-  theme_bw()+ 
-  xlab("") + ylab("Proportion of CN")+
-  theme(strip.text = element_text(size=12, color="black"), 
-        axis.text.x = element_text(angle=45,  hjust =1), 
-        axis.text = element_text(size=12, color="black"), 
-        legend.position = "none")
-print(pS3C)
-dev.off()
-
-
-# CN functional characteristic ====
-data_for_plot <- melt(markerExpr_tum)
-data_for_plot<- data_for_plot %>%
-  dplyr::mutate(type = factor(
-    ifelse(type == "BK", "BK", paste0("CN", type)), 
-    levels = c("BK", paste0("CN", c(1:numClust)))
-  ))
-
-
-summary_df <- data_for_plot %>%
-  group_by(variable, type, Site)%>% 
-  dplyr::summarise(
-    mean_value = mean(value), 
-    median_value = median(value))%>%
-  group_by(variable)%>% 
-  dplyr::mutate(scaled_median = as.numeric(scale(median_value)))
-
-# scaled Marker expression (across CN)
-p<- ggplot(summary_df, aes(variable, scaled_median, fill = Site)) +
-  geom_bar(width = 1, stat = "identity", color = "black",  alpha = 0.7)  + 
-  scale_y_continuous(breaks = scales::breaks_width(1))+
-  geom_hline(yintercept = 0, color = "blue", size = 0.7) +
-  #scale_fill_manual(values = tme_colors) +  # Custom colors
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(size = 5),
-    axis.text = element_blank(),
-    axis.title = element_blank(),
-    axis.line = element_blank(),
-    plot.margin = unit(c(1, 1, 1, 1), "cm")
-  ) +
-  coord_polar() +
-  facet_wrap(~type, ncol=5)
-
-pdf('./output/FigureS3D.pdf', width=8, height = 8)
-print(p)
-dev.off()
-
-## line plot including bulk ====
-data_melted<- melt(markerExpr_tum)
-data_melted$type<- factor(data_melted$type, levels=c("BK", 1:numClust))
-
-data_for_plot_line<- data_melted
-
-summary_df_line <- data_for_plot_line %>%
-  group_by(Site, variable)%>% 
-  dplyr::mutate(baselevel = median(value))%>%
-  group_by(type, Site, variable, baselevel) %>%
-  dplyr::summarise(
-    median_value = median(value),
-    mean_value = mean(value),
-    se = sd(value) / sqrt(n()),  # Standard error
-    margin_of_error = 2 * se,  # Margin of error for 95% CI (z=1.96)
-    lower_ci = median_value - margin_of_error,  # Lower bound of 95% CI
-    upper_ci = median_value + margin_of_error,   # Upper bound of 95% CI
-    first_quantile = quantile(value, 0.25), 
-    third_quantile =quantile(value, 0.75) 
+# Add a column for referece celltype
+data <- data %>%
+  mutate(
+    ref_celltype = str_replace(cellID, ".*:", ""),
+    across(c(nn, type, neighbor), as.factor)
   )
 
-# order manual
-summary_df_line$type <- as.character(summary_df_line$type)
 
-summary_df_line$type <- ifelse(summary_df_line$type != "BK",
-                               paste0("CN", summary_df_line$type),
-                               summary_df_line$type)
-
-
-summary_df_line$type<- factor(summary_df_line$type, 
-                              levels=c("BK", paste0("CN", c(2,1,3,4,7,8, 9, 10, 5, 12,6, 11))))
-
-summary_df_line$variable<- factor(summary_df_line$variable, levels=tum_markers)
-
-pdf('./output/FigureS3E.pdf', height=6, width=6)
-pS3E<- ggplot(summary_df_line, aes(x = type, y = median_value, color = Site, group = Site)) +
-  geom_line(size = 1) +  # Line for the mean value
-  geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci, fill = Site), alpha = 0.2, color = NA) +
-  facet_wrap(~ variable, scales = "free_y", ncol = 2) +  # Facet by Marker
-  theme_minimal() + 
-  labs(
-    x = "TME",
-    y = "Median Expression",
-    color = "Site",
-    fill = "Site"
-  ) +
-  theme(
-    legend.position = "right",
-    strip.text = element_text(size = 14),
-    axis.title = element_text(size = 12), 
-    axis.text.x = element_text(size=8, angle=45,  hjust =1)
-  )+ 
-  geom_hline(data= summary_df_line, 
-             aes(yintercept=baselevel, color=Site), 
-             linetype="dashed")
-print(pS3E)
+pdf('./output/Figure3C.pdf', height=3, width=2.5)
+for (i in unique(data$neighbor)){
+  p3C<- ggplot(data[data$neighbor%in%i,], aes(x = nn, y = weights, color = nn)) +
+    geom_violin()  +
+    geom_boxplot(width=0.2)+ 
+    labs(x = "Nearest Neighbors", y = i) +
+    theme_minimal()+
+    theme(legend.position = "none", 
+          plot.title =element_text(size=12,color = "black", hjust = 0.5) )+
+    facet_wrap(~type)
+  print(p3C)
+}
 dev.off()
 
 
+## Extract the most different TME and visualize ===== 
+identical(rownames(spatwt_1m), rownames(knnwt))
+knnwt_filtered<- knnwt[id_1, ]
+
+compare_CD8T<- as.data.frame(cbind(spatwt_filtered[,"CD8T"],knnwt_filtered[,c("CD8T", "sample_id")]))
+names(compare_CD8T)<-c("spatwt", "knnwt", "sample_id")
+compare_CD8T$diff <- compare_CD8T$spatwt - compare_CD8T$knnwt
+
+# order by diff 
+compare_CD8T<- compare_CD8T[order(compare_CD8T$diff, decreasing=T), ]
+compare_CD8T<- compare_CD8T[!duplicated(compare_CD8T$sample_id), ]
+compare_CD8T$refID<- gsub(":.*", "", rownames(compare_CD8T))
+
+colorassigned<- c("#8c564b",#Immune_mix
+                  "#1f77b4",#CD8T
+                  "#ff7f0e",#CD4T
+                  "#FEE480",#NK
+                  "#d62728",#Myeloid
+                  "#9C4DF5",#Neutrophil 
+                  "#BBE5E9",#Stroma
+                  "#d3d3d3",#Tumor
+                  "#5c6068")#UAs
+names(colorassigned)<-c("Immune_Mix", "CD8T", "CD4T", "NK","Myeloid", "Neutrophil","Stroma", "Tumor", "UA")
+
+# pick top 5 cases where the CD8T cell influence value on Tumor 
+pickcell<- compare_CD8T[1:5, ]
+print(pickcell)
+range =50
+# Filter data for each sample_id based on the reference from pickcell
+data_for_plot_list <- lapply(1:nrow(pickcell), function(i) {
+  # Extract the sample ID and reference coordinates for the current pickcell
+  sampID <- as.numeric(pickcell$sample_id[i])
+  reference <- df_output[pickcell$refID[i],]
+  
+  # Filter coordinates based on the range
+  data_for_plot<- df_output
+  data_for_plot$is_reference <- FALSE 
+  data_for_plot$is_reference[as.numeric(pickcell$refID[i])]<-TRUE
+  data_for_plot_filtered<- data_for_plot %>%
+    dplyr::filter(
+      sample_id == sampID & 
+        X_position >= reference$X_position - range & 
+        X_position <= reference$X_position + range &
+        Y_position >= reference$Y_position - range & 
+        Y_position <= reference$Y_position + range)
+})
+
+data_for_plot_combined <- bind_rows(data_for_plot_list)
+
+# Figure 3D
+data_for_plot_combined$sample_id<-paste0("core:", data_for_plot_combined$sample_id)
+data_for_plot_combined$sample_id<- as.factor(data_for_plot_combined$sample_id)
+
+pdf('./output/Figure3D.pdf', height = 3, width=15)
+p3D<- ggplot(data_for_plot_combined, aes(x = X_position, y = Y_position)) + 
+  geom_point(aes(color = cell_clustering1m), size = 4) +
+  geom_point(
+    data = data_for_plot_combined %>% dplyr::filter(is_reference == TRUE),
+    aes(x = X_position, y = Y_position),
+    shape = 21, fill = "white", color = "black", size = 4, stroke = 1.2
+  ) +
+  theme_bw() +
+  scale_y_reverse() + # flip y-axis to match MCD image 
+  scale_color_manual(values = colorassigned, name="cellTypes") +
+  facet_wrap(~sample_id, scales = "free", ncol=5) + 
+  labs(x = expression("X Position (" ~ mu ~ "m)"), y = "Y Position (" ~ mu ~ "m)")
+print(p3D)
+dev.off()
+
+## Dot plot for pairwise Cell-cell interaction in Pancreas & Liver  ===== 
+df_rm_2m <- df_output%>% dplyr::select(-cell_clustering1m)
+colnames(df_rm_2m)[4]<- "celltype"
+
+spatwt <- do_CI_quantification(expr = df_rm_2m,  # should contain sample_id, X, Y position, celltype in the df
+                               sampleID = sampleID,
+                               kernels ="gaussian",
+                               clusterlevels = clusterlevels,
+                               sigma = 10) 
+spatwt$sample_id<- factor(spatwt$sample_id, levels=samplevels)
+# save spatwt 
+saveRDS(spatwt, "./backup/spatwt.rds")
+
+df_cci <- spatwt%>% rownames_to_column("ref")
+df_cci$ref <- gsub(".*:", "", df_cci$ref)
+df_cci$ref<- as.factor(df_cci$ref)
+df_cci<- left_join(df_cci, Specimen_designation[,c("sample_id", "Site")], by="sample_id")
+df_cci<- melt(df_cci)
+colnames(df_cci)[4]<-"influence"
+
+# scale
+df_cci_summary <- df_cci %>%
+  dplyr::group_by(ref, influence, Site) %>%
+  dplyr::summarise(mean_value = mean(value), .groups = "drop") %>%
+  dplyr::filter(ref != influence) %>% 
+  dplyr::group_by(Site, influence)%>%
+  dplyr::mutate(scaled = as.numeric(scale(mean_value)))%>% 
+  ungroup()
+
+
+df_cci_summary$ref<- factor(df_cci_summary$ref, levels=rev(clusterlevels))
+df_cci_summary$influence<- factor(df_cci_summary$influence, levels=clusterlevels)
+df_cci_summary$Site<- factor(df_cci_summary$Site, levels=sitelevels)
+
+df_cci_summary<- df_cci_summary%>% 
+  dplyr::filter(mean_value>0.01) # removing pairwise interaction mean_value < 0.01
+
+## filter 
+pdf('./output/FigureS2A.pdf', height=8, width=12)
+p2_1<-ggplot(df_cci_summary, aes(x=influence, y=ref)) + 
+  geom_point(pch = 21, stroke = 0.5, col="grey", aes(size = mean_value, fill = scaled)) + 
+  theme_classic() +
+  ylab("") + 
+  xlab("")+
+  theme(axis.line = element_blank(), 
+        axis.text= element_text(colour ="black", size = 12),
+        panel.border = element_rect(colour = "black", fill = NA, size = 1),  
+        panel.grid.major = element_line(size = 0.5, linetype = 'solid'),  
+        panel.grid.minor = element_line(size = 0.25, linetype = 'solid'),
+        legend.title = element_text(size = 8),
+        legend.text = element_text(size = 7), 
+        legend.key.size = unit(0.3, "cm"),
+        legend.position="left") + 
+  #scale_color_discrete("grey")+
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0, 
+                       name="Scale Relative to\nreceiving celltypes\n(scaled down\nthe column)")+
+  scale_y_discrete(position = "right") + 
+  scale_x_discrete(
+    guide = guide_axis(angle = 45),position = "top") + 
+  scale_size_continuous(breaks = seq(0, max(df_cci_summary$mean_value), by = 0.1))+
+  facet_wrap(~Site)
+print(p2_1)
+dev.off()
+
+
+# overall CD8T+ TME comparsion between Pancreas and Liver (radial plot)
+# Define the index
+idx <- list(
+  which(df_output$cluster == "CD8T" & df_output$sample_id != 43),
+  which(df_output$cluster == "Tumor" & df_output$sample_id != 43)
+)
+
+# sample info dataframe
+unique_id <- unique(df_output$sample_ids)
+sampInfo <- data.frame(sample_id = unique_id)
+sampInfo$Site <- as.factor(df_output$Site[match(sampInfo$sample_id, df_output$sample_id)])
+sampInfo$Patient <- as.factor(df_output$Patient[match(sampInfo$sample_id, df_output$sample_id)])
+
+majorCelltypes <- list(c("CD8T", "CD4T", "Treg", "M_I", "M_II", "Neutrophil", "Str_I", "Str_II", "Tumor"), 
+                       c("CD8T","CD4T","Treg","NK","M_I", "M_II", "Neutrophil", "Str_I", "Str_II", "UA"))
+cellTypes<- c("CD8T", "Tumor")
+
+tme_colors <- c(
+  "#1f77b4",  # CD8T
+  "#ff7f0e",  # CD4T
+  "#ff9f0e",  # Treg
+  "#FEE480",  # NK
+  "#2ca02c",  # M_I
+  "#d62728",  # M_II
+  "#9C4DF5",  # Neutrophil
+  "#BBE5E9",  # Str_I
+  "#0099B5",  # Str_II
+  "#d3d3d3",  # Tumor
+  "#5c6068"   # UA
+)
+names(tme_colors) <- c("CD8T", "CD4T","Treg","NK", "M_I", "M_II", "Neutrophil", "Str_I", "Str_II", "Tumor", "UA")
+
+### TME comparison between Pancreas and Liver (CD8T and Tumor)
+cell_types <- c("Tumor", "CD8T")
+
+all_results <- list()
+
+for (cell_type in cell_types) {
+  idx <- which(df_output$cluster == cell_type & 
+                 df_output$sample_id != 43)
+  
+  # Subset data
+  spatwt_df <- spatwt[idx, ]
+  spatwt_df$Site <- factor(df_output$Site[match(spatwt_df$sample_id, df_output$sample_id)], levels = sitelevels)
+  spatwt_df$Patient <- factor(df_output$Patient[match(spatwt_df$sample_id, df_output$sample_id)], levels = unique(df_output$Patient))
+  
+  # Filter data
+  filtered_df <- spatwt_df[, clusterlevels]
+  
+  # Identify pancreas and liver indices
+  PanIdx <- which(spatwt_df$Site == "Pancreas")
+  LivIdx <- which(spatwt_df$Site == "Liver")
+  
+  # Initialize results dataframe
+  results <- data.frame(CellType = character(), 
+                        PValue = numeric(), 
+                        AdjustedPValue = numeric(), 
+                        MeanPancreas = numeric(),
+                        MeanLiver = numeric(),
+                        log2FC = numeric())
+  
+  for (cell in clusterlevels) {
+    pancreas_vals <- filtered_df[PanIdx, cell]
+    liver_vals <- filtered_df[LivIdx, cell]
+    
+    # Run Wilcoxon test
+    test_result <- wilcox.test(pancreas_vals, liver_vals, exact = FALSE)
+    
+    # Calculate means
+    mean_pancreas <- mean(pancreas_vals, na.rm = TRUE)
+    mean_liver <- mean(liver_vals, na.rm = TRUE)
+    log2fc <- log2(mean_liver / mean_pancreas)
+    
+    results <- rbind(results, data.frame(CellType = cell,
+                                         PValue = test_result$p.value,
+                                         AdjustedPValue = NA,
+                                         MeanPancreas = mean_pancreas,
+                                         MeanLiver = mean_liver,
+                                         log2FC = log2fc))
+  }
+  
+  # Adjust p-values using Bonferroni correction
+  results$AdjustedPValue <- p.adjust(results$PValue, method = "bonferroni")
+  results$logP <- -log10(results$AdjustedPValue)
+  
+  # Replace Inf with maximum finite value
+  results$logP[is.infinite(results$logP)] <- max(results$logP[!is.infinite(results$logP)], na.rm = TRUE)
+  
+  all_results[[cell_type]] <- results
+  
+  pdf(paste0('./output/FigureS2B_', cell_type, '.pdf'), height = 5, width = 5)
+  pS2B<- ggplot(results, aes(CellType, log2FC, fill = logP)) +
+    geom_bar(width = 1, stat = "identity", color = "black") +
+    scale_y_continuous(breaks = scales::breaks_width(1)) +
+    scale_fill_gradient(low = "yellow", high = "red", name = "-log10(adj.pvalue)") +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(size = 8),
+      axis.text = element_blank(),
+      axis.title = element_blank(),
+      axis.line = element_blank(),
+      plot.margin = unit(c(1, 1, 1, 1), "cm")
+    ) +
+    coord_polar()
+  print(pS2B)
+  dev.off()
+}
