@@ -253,4 +253,16 @@ saveRDS(output, 'backup/backup_output.rds')
 
 df_output<- data.frame(fsApply(output$fcs1, exprs)[, c("X_position", "Y_position")], sample_id = output$sample_ids, 
                        cluster = output$cell_clustering2m, cell_clustering1m=output$cell_clustering1m)
+
+sitelevels<- c("Pancreas", "Liver")
+samplevels<- unique(as.factor(output$sample_ids))
+
+clusterlevels=c("Immune_Mix","CD8T","CD4T","Treg", "NK", 
+                "M_I","M_II","M_III","M_IV","M_V","M_VI",
+                "Neutrophil","Str_I","Str_II","Str_III","Str_IV","Str_V",
+                "Str_VI","Str_VII","Tumor", "UA")
+df_output$Site<- factor(output$Site[match(df_output$sample_id,output$meta_data$sample_id)], levels=sitelevels)
+df_output$Patient <- factor(output$Patient[match(df_output$sample_id,output$meta_data$sample_id)], levels=unique(output$Patient))
+df_output$cluster <- factor(df_output$cluster, levels=clusterlevels)
+
 saveRDS(df_output, './data/df_output.rds')
