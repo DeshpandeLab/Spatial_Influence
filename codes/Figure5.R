@@ -3,7 +3,7 @@
 #============================#
 
 ## Tumor TME analysis ====
-spatwt<- readRDS('./backup/spatwt.rds')
+spatwt<- readRDS('./data/spatwt.rds')
 
 # filter all tumors (remove core 43)
 index <- which(df_output$cluster=="Tumor"&

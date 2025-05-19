@@ -3,7 +3,7 @@
 #============================#
 
 ## CD8+T TME analysis====
-spatwt<- readRDS('./backup/spatwt.rds')
+spatwt<- readRDS('./data/spatwt.rds')
 
 # remove core43 
 idx <- which(df_output$cluster=="CD8T"&

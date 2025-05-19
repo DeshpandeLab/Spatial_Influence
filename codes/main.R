@@ -78,8 +78,7 @@ if (!dir.exists(output_folder)) {
 
 # customize sitelevels 
 sitelevels<- c("Pancreas", "Liver")
-samplevels<- unique(as.factor(output$sample_ids))
-
+samplevels<- unique(as.factor(df_output$sample_id))
 
 clusterlevels=c("Immune_Mix","CD8T","CD4T","Treg", "NK", 
                 "M_I","M_II","M_III","M_IV","M_V","M_VI",
@@ -88,12 +87,9 @@ clusterlevels=c("Immune_Mix","CD8T","CD4T","Treg", "NK",
 
 ## load data ====
 df_output <- readRDS('./data/df_output.rds')
-df_output$Site<- factor(output$Site[match(df_output$sample_id,output$meta_data$sample_id)], levels=sitelevels)
-df_output$Patient <- factor(output$Patient[match(df_output$sample_id,output$meta_data$sample_id)], levels=unique(output$Patient))
-df_output$cluster <- factor(df_output$cluster, levels=clusterlevels)
-
 new_expr<- readRDS('./data/new_expr.rds')
-Specimen_designation$sample_id<- factor(Specimen_designation$sample_id, levels=unique(output$sample_ids))
+
+Specimen_designation$sample_id<- factor(Specimen_designation$sample_id, levels=unique(df_output$sample_id))
 
 celltype_markers<- c("Collagen", "CD8", "CD45RA", "KI67" ,  "CD3", "CD57", 
                      "FOXP3" , "CD4" , "CD74" ,"CD86", "CD206","VISTA", 
