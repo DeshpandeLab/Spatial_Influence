@@ -61,7 +61,6 @@ colnames(Specimen_designation)[1]<-"sample_id"
 # source('./codes/preprocessing.R')
 # source('./codes/subclustering.R')
 
-
 # Having backup_output.rds, start from here ====================================
 
 # create output folder if running for the first time 
@@ -77,16 +76,6 @@ if (!dir.exists(output_folder)) {
   cat("output folder already exists.\n")
 }
 
-## load data ====
-output <- readRDS('./backup/backup_output.rds')
-new_expr<- readRDS('./backup/new_expr.rds')
-Specimen_designation$sample_id<- factor(Specimen_designation$sample_id, levels=unique(output$sample_ids))
-
-celltype_markers<- c("Collagen", "CD8", "CD45RA", "KI67" ,  "CD3", "CD57", 
-                     "FOXP3" , "CD4" , "CD74" ,"CD86", "CD206","VISTA", 
-                     "SMAVIM", "CD163" , "CK"  ,"CD15" , "CD68",  "HLADR", 
-                     "Granzyme", "DCSIGN")
-
 # customize sitelevels 
 sitelevels<- c("Pancreas", "Liver")
 samplevels<- unique(as.factor(output$sample_ids))
@@ -97,17 +86,30 @@ clusterlevels=c("Immune_Mix","CD8T","CD4T","Treg", "NK",
                 "Neutrophil","Str_I","Str_II","Str_III","Str_IV","Str_V",
                 "Str_VI","Str_VII","Tumor", "UA")
 
+## load data ====
+df_output <- readRDS('./data/df_output.rds')
+df_output$Site<- factor(output$Site[match(df_output$sample_id,output$meta_data$sample_id)], levels=sitelevels)
+df_output$Patient <- factor(output$Patient[match(df_output$sample_id,output$meta_data$sample_id)], levels=unique(output$Patient))
+df_output$cluster <- factor(df_output$cluster, levels=clusterlevels)
 
-# Run Figure 1 & 1S
-source('./codes/Figure1.R')
+new_expr<- readRDS('./data/new_expr.rds')
+Specimen_designation$sample_id<- factor(Specimen_designation$sample_id, levels=unique(output$sample_ids))
 
-# Run Figure 2 & 2S
+celltype_markers<- c("Collagen", "CD8", "CD45RA", "KI67" ,  "CD3", "CD57", 
+                     "FOXP3" , "CD4" , "CD74" ,"CD86", "CD206","VISTA", 
+                     "SMAVIM", "CD163" , "CK"  ,"CD15" , "CD68",  "HLADR", 
+                     "Granzyme", "DCSIGN")
+
+
+# Figure 1 - analysis workflow
+# Run Figure 2 & Supplementary Figure 1
 source('./codes/Figure2.R')
 
-# Run Figure 3
+# Run Figure 3 & Supplementary Figure 2
 source('./codes/Figure3.R')
 
-# Run Figure 4
+# Run Figure 4 & Supplementary Figure 3
 source('./codes/Figure4.R')
 
-
+# Run Figure 5 & Supplementary Figure 4
+source('./codes/Figure5.R')
