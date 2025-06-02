@@ -76,14 +76,6 @@ if (!dir.exists(output_folder)) {
   cat("output folder already exists.\n")
 }
 
-# customize sitelevels 
-sitelevels<- c("Pancreas", "Liver")
-samplevels<- unique(as.factor(df_output$sample_id))
-
-clusterlevels=c("Immune_Mix","CD8T","CD4T","Treg", "NK", 
-                "M_I","M_II","M_III","M_IV","M_V","M_VI",
-                "Neutrophil","Str_I","Str_II","Str_III","Str_IV","Str_V",
-                "Str_VI","Str_VII","Tumor", "UA")
 
 ## load data ====
 df_output <- readRDS('./data/df_output.rds')
@@ -96,6 +88,14 @@ celltype_markers<- c("Collagen", "CD8", "CD45RA", "KI67" ,  "CD3", "CD57",
                      "SMAVIM", "CD163" , "CK"  ,"CD15" , "CD68",  "HLADR", 
                      "Granzyme", "DCSIGN")
 
+# customize sitelevels 
+sitelevels<- c("Pancreas", "Liver")
+samplevels<- unique(as.factor(df_output$sample_id))
+
+clusterlevels=c("Immune_Mix","CD8T","CD4T","Treg", "NK", 
+                "M_I","M_II","M_III","M_IV","M_V","M_VI",
+                "Neutrophil","Str_I","Str_II","Str_III","Str_IV","Str_V",
+                "Str_VI","Str_VII","Tumor", "UA")
 
 # Figure 1 - analysis workflow
 # Run Figure 2 & Supplementary Figure 1
