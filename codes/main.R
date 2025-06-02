@@ -3,6 +3,44 @@
 #        IMC PDAC study (PRI vs MET)       #
 #                                          #
 #==========================================#
+## Check and install missing packages
+required_packages <- unique(c(
+  "readxl", "harmony", "pals", "flowCore", "ggridges", "dplyr", "ggplot2", 
+  "tibble", "reshape2", "cowplot", "RColorBrewer", "FNN", "stringr", "fields", 
+  "tidyr", "ComplexHeatmap", "pheatmap", "circlize", "ggpubr", "tidyverse", 
+  "ggsignif", "broom", "TCGAbiolinks", "SummarizedExperiment", "DESeq2", 
+  "survival", "survminer", "BiocManager","spatstat","reshape","Hmisc","grid",
+  "RColorBrewer","dittoSeq","ConsensusClusterPlus","ggpubr","tiff","raster",
+  "FlowSOM","flowCore","terra"
+))
+
+# Install missing packages
+missing_packages <- required_packages[!(required_packages %in% installed.packages()[, "Package"])]
+if (length(missing_packages) > 0) {
+  install.packages(missing_packages)
+}
+
+missing_packages <- required_packages[!(required_packages %in% installed.packages()[, "Package"])]
+if (length(missing_packages) > 0) {
+  BiocManager::install(missing_packages)
+}
+
+# Load all required packages
+lapply(required_packages, require, character.only = TRUE)
+
+# Function to dynamically install and load required packages
+load_required_packages <- function(packages) {
+  for (pkg in packages) {
+    if (!require(pkg, character.only = TRUE)) {
+      tryCatch({
+        install.packages(pkg, dependencies = TRUE)
+      }, 
+      BiocManager::install(pkg, dependencies = TRUE)
+      )
+      library(pkg, character.only = TRUE)
+    }
+  }
+}
 
 ## load library ====
 library(readxl)
