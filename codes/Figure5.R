@@ -390,7 +390,7 @@ for (data_type in data_types) {
       rect_gp = gpar(col = "black", lwd = 1.5), 
       right_annotation = site_annotation
     )
-    draw(ht)
+    ComplexHeatmap::draw(ht)
     dev.off()
   }
 
