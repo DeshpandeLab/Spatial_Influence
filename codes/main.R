@@ -9,10 +9,11 @@ required_packages <- unique(c(
   "tibble", "reshape2", "cowplot", "RColorBrewer", "FNN", "stringr", "fields", 
   "tidyr", "ComplexHeatmap", "pheatmap", "circlize", "ggpubr", "tidyverse", 
   "ggsignif", "broom", "TCGAbiolinks", "SummarizedExperiment", "DESeq2", 
-  "survival", "survminer", "BiocManager","spatstat","reshape","Hmisc","grid",
-  "RColorBrewer","dittoSeq","ConsensusClusterPlus","ggpubr","tiff","raster",
-  "FlowSOM","flowCore","terra"
+  "survival", "survminer","ggh4x", "BiocManager","spatstat","reshape","Hmisc","grid",
+  "dittoSeq","ConsensusClusterPlus","tiff","raster",
+  "FlowSOM","terra"
 ))
+
 
 # Install missing packages
 missing_packages <- required_packages[!(required_packages %in% installed.packages()[, "Package"])]
@@ -42,37 +43,6 @@ load_required_packages <- function(packages) {
   }
 }
 
-## load library ====
-library(readxl)
-library(harmony)
-library(pals)
-library(flowCore)
-library(ggridges)
-library(flowCore)
-library(readxl)
-library(dplyr)
-library(ggplot2)
-library(tibble)
-library(reshape2)
-library(cowplot)
-library(RColorBrewer)
-library(FNN)
-library(stringr)
-library(fields)
-library(tidyr)
-library(ComplexHeatmap)
-library(pheatmap)
-library(circlize)
-library(ggpubr)
-library(tidyverse)
-library(ggsignif)
-library(broom)
-library(TCGAbiolinks)
-library(SummarizedExperiment)
-library(DESeq2)
-library(survival)
-library(survminer)
-library(ggh4x)
 
 ## load functions ====
 source('codes/functions/returnfcs.R')
