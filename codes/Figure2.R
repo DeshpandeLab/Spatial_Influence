@@ -240,8 +240,7 @@ prop1<-ggplot(props_df,
         strip.text = element_text(size = 12),
         axis.text=element_text(size=12, color = "black"),
         legend.position = 'right')+
-  scale_x_continuous(expand = expansion(mult = c(0,0.3))) +
-  xlim(0,75) +
+  scale_x_continuous(limits = c(0, 75), expand = expansion(mult = c(0.05,0.3))) +
   ylab('All cellTypes')+
   xlab("proportion of all cells")+
   scale_color_manual(name = "Site", 
@@ -279,8 +278,7 @@ prop2<-ggplot(props_df_rm,
         strip.text = element_text(size = 12),
         axis.text=element_text(size=12, color = "black"),
         legend.position = 'right')+
-  scale_x_continuous(expand = expansion(mult = c(0,0.3))) +
-  xlim(0,75) +
+  scale_x_continuous(limits = c(0, 75), expand = expansion(mult = c(0.05,0.3))) +
   ylab('Immune Cells')+
   xlab("proportion of Immune cells")+
   scale_color_manual(name = "Site", 
