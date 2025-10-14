@@ -2,33 +2,38 @@
 ###       Figure 3         ###
 #============================#
 
-# calculate spatwt
+## compute FunCN spatial weight ====
 
-## Spatial weight calculations for each core =====
+# Spatial weight calculations for each core
 sampleID <- unique(df_output$sample_id)
 
 df_rm <- df_output%>% dplyr::select(-cluster)
 colnames(df_rm)[4]<- "celltype"
+
+df_rm$celltype <- factor(df_rm$celltype, levels=unique(df_output$cell_clustering1m))
+
 # CI quantification for broader celltypes
-spatwt_1m <- do_CI_quantification(expr = df_rm,  # should contain sample_id, X, Y position, celltype in the df
-                                  sampleID = sampleID,
-                                  kernels ="gaussian",
-                                  clusterlevels = unique(df_output$cell_clustering1m),
-                                  sigma = 10) 
+spatwt_1m <- do_CI_quantification(expr = df_rm,  
+                                  x_col = "X_position", # x_position column name
+                                  y_col = "Y_position", # x_position column name
+                                  celltype_col = "celltype", # cell type column name
+                                  multisample = TRUE, # TRUE = multisamples, FALSE = single sample
+                                  sample_col = "sample_id", # sample id column name
+                                  kernels = "gaussian", # pick the kernel style 
+                                  sigma = 10) # adjust the sigma for the region of interest
 spatwt_1m$sample_id<- factor(spatwt_1m$sample_id, levels=samplevels)
 
 
-## KNN ==== 
+## compute KNN ====
 compute_knn<- function(data, cell_col, clusterlevels, x_col, y_col, k) {
-  
-  ## data frame initialization
+  # data frame initialization
   knn_weights<- data.frame(matrix(0, nrow = nrow(data), ncol = length(clusterlevels)))
   colnames(knn_weights) <- clusterlevels
   
   nn_indices<- data.frame(matrix(0, nrow = nrow(data), ncol = k))
   colnames(nn_indices) <- paste0("N", 1:k)
   
-  ## compute knn
+  # compute knn
   knn_result <- get.knn(data[, c(x_col, y_col)], k = k)
   # knn_result$nn.index: index of the cell (10 columns with increasing dist neighbors for 10-nn)
   # knn_result$nn.dist : distance of the cell from the reference cell 
@@ -77,33 +82,12 @@ for (i in sampleID){   # by the core
   nn_list<- rbind(nn_list, N) 
 }
 
-generate_neighborweights <- function(spatwt, knnwt, nn_type) {
-  # data.frame of gaussian and knn weights for each cell
-  wts <- lapply(
-    rownames(spatwt),
-    function(rowname) {
-      coi <- str_replace(nn_list[rowname, nn_type], ".*:", "")
-      
-      data.frame(
-        cellID = rowname,
-        weights = c(spatwt[rowname, coi], knnwt[rowname, coi]),
-        type = c("gaussian", "knn"),
-        neighbor = coi,
-        nn = nn_type,
-        stringsAsFactors = FALSE
-      )
-    }
-  ) %>% bind_rows()
-  return(wts)
-}
 
-
-## Contour plot for validation  ===== 
+## Contour plot for validation ====
 # choose a core to test the result 
 select_core =51
 
-
-# gaussian influence of T cells on Tumor 
+# FunCN gaussian influence of T cells on Tumor 
 id_1 <- which(grepl("Tumor", rownames(spatwt_1m)))
 
 spatwt_filtered<- spatwt_1m[id_1, ]
@@ -161,7 +145,7 @@ image.plot(
 dev.off()
 
 
-## scatter plot gaussian vs Knn ==== 
+## Compare scatter plot FunCN vs KNN ====
 # Subset data for the specified core
 spatwt_subset <- spatwt_1m %>% dplyr::filter(sample_id == select_core)
 knnwt_subset <- knnwt %>% dplyr::filter(sample_id == select_core)
@@ -171,15 +155,15 @@ knnwt_subset<- knnwt_subset[, colnames(spatwt_subset)]
 identical(rownames(spatwt_subset), rownames(knnwt_subset))
 identical(colnames(spatwt_subset), colnames(knnwt_subset))
 
-spatwt_subset_melted <- melt(subset(spatwt_subset, select = -sample_id))
-knn_wt_subset_melted<- melt(subset(knnwt_subset, select = -sample_id))
+spatwt_subset_melted <- reshape::melt(subset(spatwt_subset, select = -sample_id))
+knn_wt_subset_melted<- reshape::melt(subset(knnwt_subset, select = -sample_id))
 
 
-colnames(spatwt_subset_melted)[2]<- "gaussian"
+colnames(spatwt_subset_melted)[2]<- "FunCN"
 colnames(knn_wt_subset_melted)[2]<-"knn"
 
 df<- cbind(spatwt_subset_melted, knn_wt_subset_melted[,"knn"])
-names(df)<-c("neighbor", "gaussian", "knn")
+names(df)<-c("neighbor", "FunCN", "knn")
 
 
 ## plot spatwt vs knn weights 
@@ -189,9 +173,9 @@ df_sub$neighbor<- factor(df_sub$neighbor, levels=coi)
 
 
 pdf('./output/Figure3B.pdf', height=2.7,width=7)
-p3B<- ggplot(df_sub, aes(x= knn, y=gaussian, color=neighbor) ) + 
+p3B<- ggplot(df_sub, aes(x= knn, y=FunCN, color=neighbor) ) + 
   geom_point() + 
-  labs(x = "knn proportion", y = "kernel-based influence") +
+  labs(x = "knn proportion", y = "FunCN influence") +
   theme_minimal()+ 
   theme(
     plot.title = element_text(size=13,color = "black"),
@@ -208,7 +192,26 @@ print(p3B)
 dev.off()
 
 
-## calculate difference in KNN vs spatwt_1m ===== 
+## Evaluate difference in KNN vs spatwt_1m(FunCN method)  ====
+generate_neighborweights <- function(spatwt, knnwt, nn_type) {
+  # data.frame of gaussian and knn weights for each cell
+  wts <- lapply(
+    rownames(spatwt),
+    function(rowname) {
+      coi <- str_replace(nn_list[rowname, nn_type], ".*:", "")
+      
+      data.frame(
+        cellID = rowname,
+        weights = c(spatwt[rowname, coi], knnwt[rowname, coi]),
+        type = c("FunCN", "knn"),
+        neighbor = coi,
+        nn = nn_type,
+        stringsAsFactors = FALSE
+      )
+    }
+  ) %>% bind_rows()
+  return(wts)
+}
 
 nn_types <- paste0("N", 1:4)
 data <- nn_types %>%
@@ -237,8 +240,7 @@ for (i in unique(data$neighbor)){
 }
 dev.off()
 
-
-## Extract the most different TME and visualize ===== 
+## Extract the most different TME and visualize ====
 identical(rownames(spatwt_1m), rownames(knnwt))
 knnwt_filtered<- knnwt[id_1, ]
 
@@ -287,7 +289,7 @@ data_for_plot_list <- lapply(1:nrow(pickcell), function(i) {
 
 data_for_plot_combined <- bind_rows(data_for_plot_list)
 
-# Figure 3D
+# plot Figure 3D
 data_for_plot_combined$sample_id<-paste0("core:", data_for_plot_combined$sample_id)
 data_for_plot_combined$sample_id<- as.factor(data_for_plot_combined$sample_id)
 
@@ -307,14 +309,212 @@ p3D<- ggplot(data_for_plot_combined, aes(x = X_position, y = Y_position)) +
 print(p3D)
 dev.off()
 
-## Dot plot for pairwise Cell-cell interaction in Pancreas & Liver  ===== 
+## Compare different sigmas and different methods (FunCN vs KNN vs Radius) ====
+# test different sigma ##
+sigmas <- c(5, 10, 30, 50)
+# KNN method 
+df_core <- subset(df_output, sample_id == select_core)
+
+knnwt_core<- c()
+for (nn in sigmas) {
+  
+  knn_res <- compute_knn(
+    data = df_core,
+    cell_col = "cell_clustering1m",
+    clusterlevels = unique(df_core$cell_clustering1m),
+    x_col = "X_position", y_col = "Y_position",
+    k = nn
+  )
+  K <- knn_res$knn_weights 
+  K$cell_Id<- paste0(rownames(df_core), ":", df_core$cell_clustering1m)
+  K$sigma <- nn
+  knnwt_core<- rbind(knnwt_core, K)
+}
+
+knnwt_core$method <- "KNN"
+head(knnwt_core)
+reorder <- c("cell_Id",unique(df_core$cell_clustering1m) ,"sigma", "method")
+knnwt_core<- knnwt_core[, reorder]
+head(knnwt_core)
+
+# FunCN method
+
+funCN_core <- c()
+for (si in sigmas) {
+  funCN_res <- do_CI_quantification(expr = df_core,
+                                    x_col = "X_position",
+                                    y_col = "Y_position",
+                                    celltype_col = "cell_clustering1m",
+                                    multisample = FALSE, 
+                                    sample_col = NA, 
+                                    kernels = "gaussian",
+                                    sigma = si) 
+  funCN_res$sigma <- si
+  funCN_res<- funCN_res%>% rownames_to_column("cell_Id")
+  funCN_core<- rbind(funCN_core, funCN_res)
+}
+funCN_core$method <- "FunCN"
+head(funCN_core)
+
+# radius method ---- calculate distances from tumor cells
+radii <- c()
+for (radius in sigmas) {
+  radii_res <- compute_radius_method(df_core = df_core,
+                                     celltype_col = "cell_clustering1m",
+                                     clusterlevels = unique(df_output$cell_clustering1m),
+                                     reference_type = "Tumor", 
+                                     rmax_pairs = radius)
+  # skip if NULL or has zero rows
+  if (!is.null(radii_res) && NROW(radii_res) > 0) {
+    radii_res$sigma <- radius
+    radii_res<- radii_res%>% rownames_to_column("cell_Id")
+    radii <- rbind(radii, radii_res)}
+}
+    
+radii$method <- "Radius"
+reorder <- c("cell_Id",unique(df_output$cell_clustering1m) ,"sigma", "method")
+radii<- radii[, reorder]
+head(radii)
+
+## plot CD8T influence on Tumor cells using different methods ====
+combined_data <- rbind(knnwt_core, funCN_core, radii)
+df_core$cell_Id <- paste0(rownames(df_core), ":", df_core$cell_clustering1m)
+
+combined_data <- combined_data %>%
+  dplyr::left_join(df_core %>% dplyr::select(cell_Id, X_position, Y_position),
+                   by = "cell_Id") 
+
+cols_to_plot<- c("CD8T", "X_position", "Y_position", "sigma", "method")
+
+## magnify zone ====
+y_rng <- c(0,200)
+x_rng <- c(650, 850)  
+
+# filter x,y-coordinates
+data_plot_filter <- combined_data%>% 
+  dplyr::filter(between(X_position, x_rng[1], x_rng[2]),
+                between(Y_position, y_rng[1], y_rng[2]))
+
+cd8_coords_filter <- df_core %>%
+  dplyr::filter(cell_clustering1m == "CD8T") %>%
+  dplyr::select(X_position, Y_position) %>% 
+  dplyr::filter(between(X_position, x_rng[1], x_rng[2]),
+                between(Y_position, y_rng[1], y_rng[2]))
+
+
+p_range<- ggplot(data_plot_filter[grep("Tumor",data_plot_filter$cell_Id), cols_to_plot], 
+                 aes(x = X_position, y = Y_position)) + 
+  geom_point(aes(color = CD8T), size = 6) +
+  geom_point(data = cd8_coords_filter,
+             aes(x = X_position, y = Y_position),
+             inherit.aes = FALSE, shape = 3, 
+             color = "red", alpha = 0.8, size=6) +
+  theme_bw() +
+  xlab("") + ylab("")+
+  scale_y_reverse()+
+  coord_equal()+
+  scale_color_viridis_c(name = "CD8T influence", option = "viridis", limits = c(0, 1), direction = -1)+
+  facet_grid(sigma~method)+ 
+  theme(legend.position = "right", 
+        axis.text = element_text(size=18, color="black"), 
+        strip.text = element_text(size=25, face="bold"), 
+        strip.background = element_blank(),
+        legend.text = element_text(size = 18),      
+        legend.title = element_text(size = 20, face = "bold"))
+
+pdf('./output/FigS2C.pdf', width = 20, height=30)
+print(p_range)
+dev.off()
+
+# check all CD8T cell influence on all tumor cells in core 51 
+DT <- as.data.frame(df_core)
+rownames(DT)<- paste0(rownames(DT), ":", DT[["cell_clustering1m"]])
+# build ppp with celltype  
+pp <- with(DT, ppp(X_position, Y_position,
+                   window = owin(range(X_position), range(Y_position)),
+                   marks  = DT[["cell_clustering1m"]]))
+
+# pick reference points
+m  <- as.character(marks(pp))
+ref_idx <- grepl("Tumor", m)
+ref_pp  <- pp[ref_idx]
+
+# all pairs from reference -> all points within 30um
+xcp <- crosspairs(ref_pp, pp, rmax = 30, what = "all")
+
+# keep <= radius_keep and > 0 (no self-self)
+keep <- xcp$d > 0
+
+from_ids <- rownames(DT)[ref_idx][xcp$i[keep]] 
+to_ids   <- marks(pp)[xcp$j[keep]]
+dist_ids <- xcp$d[keep]
+# proportions by (from -> neighbor type)
+W <- data.table(from = from_ids, to_type = to_ids, dist = dist_ids)
+CD8T_table <- W[W$to_type=="CD8T", ]
+
+CD8T_table_summarized <- CD8T_table%>%
+  group_by(from) %>% 
+  dplyr::summarize(
+    total_n = n(),
+    avg_dist = mean(dist, na.rm=T))
+
+core_51 <- combined_data[combined_data$sigma==10&combined_data$method%in%c("KNN", "FunCN")|
+                           combined_data$sigma==30&combined_data$method%in%c("Radius"), ]
+
+CD8T_table_summarized<- as.data.frame(CD8T_table_summarized)
+colnames(CD8T_table_summarized)[1]<-"cell_Id"
+CD8T_table_summarized<- left_join(CD8T_table_summarized, core_51[,c("cell_Id", "CD8T","method")], by="cell_Id")
+
+
+pS2D_1<- ggplot(CD8T_table_summarized, aes(x=total_n, y=avg_dist, color=CD8T))+
+  geom_point()+ 
+  #scale_x_continuous(breaks = breaks_x, minor_breaks = NULL,
+  #                   expand = expansion(mult = c(0.02, 0.02))) +
+  scale_y_reverse()+ theme_bw() + 
+  scale_color_viridis_c(option = "viridis", limits = c(0, 1), direction=-1)+
+  ylab("Average Distance (Tumor - CD8T)") + xlab("Number of CD8T (within 30um distance)")+
+  theme(legend.position = "none", 
+        axis.title = element_text(size=14, color="black"), 
+        axis.text = element_text(size=12, color="black"), 
+        strip.text = element_text(size=14, face="bold"), 
+        strip.background = element_blank())+ 
+  facet_wrap(~method)
+
+
+pS2D_2 <- ggplot(CD8T_table_summarized[CD8T_table_summarized$total_n%in%c(1,2,3), ], 
+       aes(x=avg_dist, y=CD8T, color=method))+
+  geom_col()+ theme_bw() + 
+  xlab("Average Distance (Tumor - CD8T)") + ylab("CD8T influence")+
+  theme(legend.position = "none", 
+        axis.title = element_text(size=14, color="black"), 
+        axis.text = element_text(size=10, color="black"), 
+        strip.text = element_text(size=14, face="bold"), 
+        strip.background = element_blank())+ 
+  facet_grid(total_n~method)
+
+pdf('./output/FigureS2D_1.pdf', height=6.5, width=5)
+print(pS2D_1)
+dev.off()
+
+pdf('./output/FigureS2D_2.pdf', height=4, width=5.5)
+print(pS2D_2)
+dev.off()
+
+
+## Apply FunCN & compare TME between PRI pancr and MET liver ====
+# Dot plot for pairwise Cell-cell interaction in Pancreas & Liver
 df_rm_2m <- df_output%>% dplyr::select(-cell_clustering1m)
 colnames(df_rm_2m)[4]<- "celltype"
 
+df_rm_2m$celltype <- factor(df_rm_2m$celltype, levels=clusterlevels)
+
 spatwt <- do_CI_quantification(expr = df_rm_2m,  # should contain sample_id, X, Y position, celltype in the df
-                               sampleID = sampleID,
-                               kernels ="gaussian",
-                               clusterlevels = clusterlevels,
+                               x_col = "X_position",
+                               y_col = "Y_position",
+                               celltype_col = "celltype",
+                               multisample = TRUE, 
+                               sample_col = "sample_id", 
+                               kernels = "gaussian",
                                sigma = 10) 
 spatwt$sample_id<- factor(spatwt$sample_id, levels=samplevels)
 # save spatwt 
@@ -324,7 +524,7 @@ df_cci <- spatwt%>% rownames_to_column("ref")
 df_cci$ref <- gsub(".*:", "", df_cci$ref)
 df_cci$ref<- as.factor(df_cci$ref)
 df_cci<- left_join(df_cci, Specimen_designation[,c("sample_id", "Site")], by="sample_id")
-df_cci<- melt(df_cci)
+df_cci<- reshape::melt(df_cci)
 colnames(df_cci)[4]<-"influence"
 
 # scale
@@ -345,7 +545,7 @@ df_cci_summary<- df_cci_summary%>%
   dplyr::filter(mean_value>0.01) # removing pairwise interaction mean_value < 0.01
 
 ## filter 
-pdf('./output/FigureS2A.pdf', height=8, width=12)
+pdf('./output/FigureS3A.pdf', height=8, width=12)
 p2_1<-ggplot(df_cci_summary, aes(x=influence, y=ref)) + 
   geom_point(pch = 21, stroke = 0.5, col="grey", aes(size = mean_value, fill = scaled)) + 
   theme_classic() +
@@ -362,7 +562,7 @@ p2_1<-ggplot(df_cci_summary, aes(x=influence, y=ref)) +
         legend.position="left") + 
   #scale_color_discrete("grey")+
   scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0, 
-                       name="Scale Relative to\nreceiving celltypes\n(scaled down\nthe column)")+
+                       name="Relative scale\nfor reference\n(scaled down\nthe column)")+
   scale_y_discrete(position = "right") + 
   scale_x_discrete(
     guide = guide_axis(angle = 45),position = "top") + 
@@ -372,7 +572,7 @@ print(p2_1)
 dev.off()
 
 
-# overall CD8T+ TME comparsion between Pancreas and Liver (radial plot)
+## overall CD8T+ TME comparsion between Pancreas and Liver (radial plot) ====
 # Define the index
 idx <- list(
   which(df_output$cluster == "CD8T" & df_output$sample_id != 43),
@@ -462,7 +662,7 @@ for (cell_type in cell_types) {
   
   all_results[[cell_type]] <- results
   
-  pdf(paste0('./output/FigureS2B_', cell_type, '.pdf'), height = 5, width = 5)
+  pdf(paste0('./output/FigureS3B_', cell_type, '.pdf'), height = 5, width = 5)
   pS2B<- ggplot(results, aes(CellType, log2FC, fill = logP)) +
     geom_bar(width = 1, stat = "identity", color = "black") +
     scale_y_continuous(breaks = scales::breaks_width(1)) +
