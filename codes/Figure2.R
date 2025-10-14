@@ -26,6 +26,15 @@ plot_scaled_heatmap(expr = new_expr,
                     cell_clustering1m = factor(df_output$cluster, levels = clusterlevels), 
                     filename ="./output/Figure2A.pdf") 
 
+# Visualize UA cells Fig. S1E(bottom)
+colorassigned2<- c(rep("white",19), 
+                   "gray",#Tumor
+                   "black")#UAs
+names(colorassigned2)<-clusterlevels
+
+visualize_ProbabilityMask(expr0 = df_output, # should contain sampleID, X,Y position, celltype annotation 
+                          samp_id = 48, 
+                          colorassigned = colorassigned2)
 
 # abundance plots 
 counts_table <- table(df_output$cluster, df_output$sample_id)
@@ -43,7 +52,7 @@ densities<- densities[clusterlevels, ]
 
 # celltype abundance by Site =====
 counts_frac<- counts%>% rownames_to_column("cellTypes")
-counts_frac <- melt(counts_frac)
+counts_frac <- reshape::melt(counts_frac)
 colnames(counts_frac)[2]<-'sample_id'
 
 counts_frac$Site<- factor(df_output$Site[match(counts_frac$sample_id,df_output$sample_id)], levels=sitelevels)
@@ -55,7 +64,7 @@ total_counts<- counts_frac%>%
   group_by(Site)%>% 
   summarise(count = sum(value))
 
-pct_total_counts<- melt(total_counts)%>% 
+pct_total_counts<- reshape::melt(total_counts)%>% 
   mutate(pct = value/sum(value)*100)
 pct_total_counts$variable<-"total fraction"
 
@@ -209,54 +218,22 @@ print(density_cores)
 dev.off()
 
 # Figure 2D - cell mask
-visualize_ProbabilityMask(expr0 = df_output, # should contain sampleID, X,Y position, celltype annotation 
+visualize_ProbabilityMask(expr0 = df_output, 
                           samp_id = 51, 
                           colorassigned = colorassigned)
 
-visualize_ProbabilityMask(expr0 = df_output, # should contain sampleID, X,Y position, celltype annotation 
+visualize_ProbabilityMask(expr0 = df_output, 
                           samp_id = 26, 
                           colorassigned = colorassigned)
 
 
-# proportion of cell types (compare between pancreas and liver)
-props_df<- melt(props%>% rownames_to_column("cellTypes"))
-colnames(props_df)[2]<- "sample_id"
-props_df<- left_join(props_df, Specimen_designation[,c("sample_id", "Site")], by="sample_id")
-
-props_df <- props_df %>%
-  group_by(cellTypes, Site) %>%
-  mutate(median_value = median(value, na.rm = TRUE)) %>%
-  ungroup()
-
-props_df<- props_df[order(props_df$median_value, decreasing=T), ]
-props_df$cellTypes<- factor(props_df$cellTypes, levels=rev(unique(props_df$cellTypes)))
-props_df$Site<- factor(props_df$Site, levels=sitelevels)
-pdf('./output/FigureS1G_1.pdf', height=5, width=5)
-prop1<-ggplot(props_df, 
-              aes(x=value, y=cellTypes, color=fct_rev(Site))) +
-  geom_boxplot()+
-  theme_bw() + 
-  theme(strip.background = element_blank(),
-        strip.text = element_text(size = 12),
-        axis.text=element_text(size=12, color = "black"),
-        legend.position = 'right')+
-  scale_x_continuous(limits = c(0, 75), expand = expansion(mult = c(0.05,0.3))) +
-  ylab('All cellTypes')+
-  xlab("proportion of all cells")+
-  scale_color_manual(name = "Site", 
-                     values = scales::hue_pal()(length(unique(props_df$Site))),
-                     breaks = levels(props_df$Site))
-print(prop1)
-dev.off()
-
-
-# remove Tumor and Str -> compare the proportion of Lymp, and Mac cellTypes 
+# check immune cell proportions
 select_cellTypes <- c("CD8T","CD4T", "Treg","NK","Immune_Mix","Neutrophil",paste0("M_", c("I", "II", "III", "IV", "V", "VI")))
 counts_table_rm <- counts_table[select_cellTypes, ]
 props_table_rm <- t(t(counts_table_rm) / colSums(counts_table_rm)) * 100
 props_rm <- as.data.frame.matrix(props_table_rm)
 
-props_df_rm<- melt(props_rm%>% rownames_to_column("cellTypes"))
+props_df_rm<- reshape::melt(props_rm%>% rownames_to_column("cellTypes"))
 colnames(props_df_rm)[2]<- "sample_id"
 props_df_rm<- left_join(props_df_rm, Specimen_designation[,c("sample_id", "Site")], by="sample_id")
 
@@ -266,23 +243,20 @@ props_df_rm <- props_df_rm %>%
   ungroup()
 
 props_df_rm<- props_df_rm[order(props_df_rm$median_value, decreasing=T), ]
-props_df_rm$cellTypes<- factor(props_df_rm$cellTypes, levels=rev(unique(props_df$cellTypes)))
+props_df_rm$cellTypes<- factor(props_df_rm$cellTypes, levels=unique(props_df_rm$cellTypes))
 props_df_rm$Site<- factor(props_df_rm$Site, levels=sitelevels)
 
-pdf('./output/FigureS1G_2.pdf', height=3, width=5)
+pdf('./output/FigureS1G_2.pdf', height=4, width=6)
 prop2<-ggplot(props_df_rm, 
-              aes(x=value, y=cellTypes, color=fct_rev(Site))) +
+              aes(x=cellTypes, y=value, color=Site)) +
   theme_bw() + 
   geom_boxplot()+
   theme(strip.background = element_blank(),
         strip.text = element_text(size = 12),
         axis.text=element_text(size=12, color = "black"),
-        legend.position = 'right')+
-  scale_x_continuous(limits = c(0, 75), expand = expansion(mult = c(0.05,0.3))) +
-  ylab('Immune Cells')+
-  xlab("proportion of Immune cells")+
-  scale_color_manual(name = "Site", 
-                     values = scales::hue_pal()(length(unique(props_df_rm$Site))),
-                     breaks = levels(props_df_rm$Site))
+        axis.text.x = element_text(angle=45, vjust=1, hjust=1),
+        legend.position = 'top')+
+  scale_y_continuous(limits = c(0, 75), expand = expansion(mult = c(0.05,0.3))) +
+  ylab('Immune cell proportions (%)')+ xlab("")
 print(prop2)
 dev.off()
