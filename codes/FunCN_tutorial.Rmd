@@ -1,0 +1,146 @@
+---
+title: "FunCN tutorial"
+output:
+  html_document:
+    df_print: paged
+---
+```{r, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = TRUE,    
+  message = FALSE,   
+  warning = FALSE)
+```
+
+```{r, library}
+library(ggplot2)
+library(dplyr)
+library(tibble)
+library(cowplot)
+```
+
+```{r, load data}
+radial_pts <- readRDS('../data/radial_pts.rds')
+equidist_pts <- readRDS('../data/equidist_pts.rds')
+```
+
+# Case 1: Equidistance example
+```{r, equi-distance dataset}
+p1 <- ggplot() +
+  geom_segment(data = equidist_pts %>% dplyr::filter(label != "A"),
+               aes(x = cx, y = cy, xend = x, yend = y, color = label),
+               linewidth = 0.7, alpha = 0.7) +
+  geom_point(data = equidist_pts, aes(x, y, color = label, shape = label), size = 3.5) +
+  geom_point(
+    data = radial_pts %>% dplyr::filter(label == "A"),
+    aes(x, y, color = label, shape = label),
+    size = 3.5, show.legend = FALSE
+  ) +
+  coord_fixed(xlim = c(0, 50), ylim = c(0, 50)) +
+  labs(title = "(i)Equal distance", x = NULL, y = NULL) +
+  theme_minimal() +
+  theme(legend.title = element_blank(), 
+        plot.title = element_text(hjust = 0.5))
+```
+
+# Case 2: Radial-distance example 
+```{r, radial}
+# Parameters
+cx <- 25; cy <- 25
+r_B <- 9
+r_C <- 17
+r_D <- 25
+
+# circles for B, C, D 
+circle_df <- function(cx, cy, r, n = 360) {
+  th <- seq(0, 2*pi, length.out = n)
+  tibble(x = cx + r*cos(th), y = cy + r*sin(th))
+}
+
+circles <- bind_rows(
+  circle_df(cx, cy, r_B) %>% mutate(label = "B"),
+  circle_df(cx, cy, r_C) %>% mutate(label = "C"),
+  circle_df(cx, cy, r_D) %>% mutate(label = "D")
+)
+
+color_map <- c(B = "#1b9e77", C = "#d95f02", D = "#7570b3")
+
+# plot
+p2 <- ggplot() +
+ geom_path(data = circles, aes(x, y, color = label), linewidth = 0.8, linetype = 2) +
+  geom_segment(data = radial_pts %>% dplyr::filter(label != "A"),
+               aes(x = cx, y = cy, xend = x, yend = y, color = label),
+               linewidth = 0.7, alpha = 0.7) +
+  geom_point(data = radial_pts, aes(x, y, color = label, shape = label), size = 3.5) +
+  # draw A on top
+  geom_point(
+    data = radial_pts %>% dplyr::filter(label == "A"),
+    aes(x, y, color = label, shape = label),
+    size = 3.5, show.legend = FALSE
+  ) +
+  coord_fixed(xlim = c(0, 50), ylim = c(0, 50)) +
+  labs(title = "(ii) Radial distance", x = NULL, y = NULL) +
+  theme_minimal() +
+  theme(legend.title = element_blank(), 
+        plot.title = element_text(hjust = 0.5))
+```
+
+```{r, plot}
+plot_grid(p1, p2, nrow = 1)
+```
+
+# Apply FunCN function to two datasets 
+**Description**  
+Computes smoothed, leave-one-out kernel weights for each point, grouped by cell-type marks.
+
+**Requirements**
+Input `expr` must contain:
+  
+  - `x_col`: x-coordinates  
+  - `y_col`: y-coordinates  
+  - `celltype_col`: cell type (mark)
+
+**Multi-sample data**  
+If there is multi-sample data in one data frame:
+  
+  - Set `multisample = TRUE`  
+  - Add `sample_col = "sample_col_name"`
+
+**Smoothing kernels**  
+
+  - A character string specifying the kernel  
+  - spatstat smooth function Options: `"gaussian"`, `"epanechnikov"`, `"quartic"`, `"disc"`
+  
+```{r, apply FunCN}
+source('./functions/do_CI_quantification.R') 
+
+# check data format 
+print(radial_pts)
+
+radial_pts <- as.data.frame(radial_pts) # transform to data.frame class 
+equidist_pts <- as.data.frame(equidist_pts) 
+
+```
+
+# Usage
+```{r, usage}
+equi_spatwt <- do_CI_quantification(expr = equidist_pts,
+                                    x_col = "x",
+                                    y_col = "y",
+                                    celltype_col = "label",
+                                    multisample = FALSE, 
+                                    sample_col = NA, 
+                                    kernels = "gaussian",
+                                    sigma = 10)
+
+radi_spatwt <- do_CI_quantification(expr = radial_pts,
+                                    x_col = "x",
+                                    y_col = "y",
+                                    celltype_col = "label",
+                                    multisample = FALSE, 
+                                    sample_col = NA, 
+                                    kernels = "gaussian",
+                                    sigma = 10)
+print(equi_spatwt)
+print(radi_spatwt)
+```
+
