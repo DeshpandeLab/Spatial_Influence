@@ -153,7 +153,7 @@ ggplot(cd8T_table[cd8T_table$sample_id%in%matched_patients,], aes(x=sample_id, y
 
 markerExpr_cd8T <- expr_cd8T[, c(funcMarkers, "Site")]
 markerExpr_cd8T$CN <- as.factor(paste0("CN",CD8T_cn_2m))
-data_for_plot <- melt(markerExpr_cd8T)
+data_for_plot <- reshape::melt(markerExpr_cd8T)
 
 summary_df <- data_for_plot %>%
   group_by(variable, CN, Site)%>% 
@@ -223,7 +223,7 @@ tumor_cn<- do_CN_analysis(spatwt_df = data4s,
                           numClusters = numClust, 
                           scaleOption = F, 
                           rmCN = TRUE, 
-                          filenameprefix = "FigureS3_")
+                          filenameprefix = "FigureS4_")
 
 
 #saveRDS(markerExpr, './backup/markerExpr.rds')
@@ -256,8 +256,8 @@ CNprop_3$Site<- factor(CNprop_3$Site, levels=sitelevels)
 
 site_comparison<-list(c("Pancreas", "Liver"))
 
-pdf('./output/FigureS3C.pdf', height=6, width =5)
-pS3C<- ggplot(CNprop_3, aes(x = Site, y = prop, fill = Site)) +
+pdf('./output/FigureS4C.pdf', height=6, width =5)
+pS4C<- ggplot(CNprop_3, aes(x = Site, y = prop, fill = Site)) +
   geom_violin(alpha=0.6)+
   geom_boxplot(width=0.3, fill = NA, color = "black", alpha = 0.5)+
   facet_wrap(~CN, scales = "free_y") + 
@@ -273,12 +273,12 @@ pS3C<- ggplot(CNprop_3, aes(x = Site, y = prop, fill = Site)) +
         axis.text.x = element_text(angle=45,  hjust =1), 
         axis.text = element_text(size=12, color="black"), 
         legend.position = "none")
-print(pS3C)
+print(pS4C)
 dev.off()
 
 
 # CN functional characteristic ====
-data_for_plot <- melt(markerExpr_tum)
+data_for_plot <- reshape::melt(markerExpr_tum)
 data_for_plot<- data_for_plot %>%
   dplyr::mutate(type = factor(
     ifelse(type == "BK", "BK", paste0("CN", type)), 
@@ -311,12 +311,12 @@ p<- ggplot(summary_df, aes(variable, scaled_median, fill = Site)) +
   coord_polar() +
   facet_wrap(~type, ncol=5)
 
-pdf('./output/FigureS3D.pdf', width=8, height = 8)
+pdf('./output/FigureS4D.pdf', width=8, height = 8)
 print(p)
 dev.off()
 
 ## line plot including bulk ====
-data_melted<- melt(markerExpr_tum)
+data_melted<- reshape::melt(markerExpr_tum)
 data_melted$type<- factor(data_melted$type, levels=c("BK", 1:numClust))
 
 data_for_plot_line<- data_melted
@@ -349,11 +349,11 @@ summary_df_line$type<- factor(summary_df_line$type,
 
 summary_df_line$variable<- factor(summary_df_line$variable, levels=tum_markers)
 
-pdf('./output/FigureS3E.pdf', height=7, width=6)
-pS3E<- ggplot(summary_df_line, aes(x = type, y = median_value, color = Site, group = Site)) +
+pdf('./output/FigureS4E.pdf', height=5, width=24)
+pS4E<- ggplot(summary_df_line, aes(x = type, y = median_value, color = Site, group = Site)) +
   geom_line(size = 1) +  # Line for the mean value
   geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci, fill = Site), alpha = 0.2, color = NA) +
-  facet_wrap(~ variable, scales = "free_y", ncol=2) +  # Facet by Marker
+  facet_wrap(~ variable, scales = "free_y", nrow=1) +  # Facet by Marker
   theme_minimal() + 
   labs(
     x = "TME",
@@ -363,34 +363,13 @@ pS3E<- ggplot(summary_df_line, aes(x = type, y = median_value, color = Site, gro
   ) +
   theme(
     legend.position = "none",
-    strip.text = element_text(size = 14),
-    axis.text = element_text(size = 10),
-    axis.text.x = element_text(angle=45,  hjust =1),
-    axis.title = element_text(size = 12)
+    strip.text = element_text(size = 18),
+    axis.text = element_text(size = 14),
+    axis.text.x = element_text(size=16,angle=45,  hjust =1),
+    axis.title = element_text(size = 14)
   )+ 
   geom_hline(data= summary_df_line, 
              aes(yintercept=baselevel, color=Site), 
              linetype="dashed")
-print(pS3E)
+print(pS4E)
 dev.off()
-
-
-# Visualize UA cells 
-colorassigned<- c("#FEE480",#Immune_mix
-                  "#FEE480",#CD8T
-                  "#FEE480",#CD4T
-                  "#FEE480",#Treg
-                  "#FEE480",#NK
-                  rep("#d62728",6), 
-                  "#d62728",#Neutrophil 
-                  rep("#BBE5E9",7), 
-                  "#d3d3d3",#Tumor
-                  "#5c6068")#UAs
-names(colorassigned)<-clusterlevels
-
-visualize_ProbabilityMask(expr0 = df_output, 
-                          samp_id = 49, 
-                          colorassigned = colorassigned)
-visualize_ProbabilityMask(expr0 = df_output, 
-                          samp_id = 48, 
-                          colorassigned = colorassigned)
