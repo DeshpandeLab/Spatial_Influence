@@ -13,14 +13,14 @@ colnames(df_rm)[4]<- "celltype"
 df_rm$celltype <- factor(df_rm$celltype, levels=unique(df_output$cell_clustering1m))
 
 # CI quantification for broader celltypes
-spatwt_1m <- do_CI_quantification(expr = df_rm,  
-                                  x_col = "X_position", # x_position column name
-                                  y_col = "Y_position", # x_position column name
-                                  celltype_col = "celltype", # cell type column name
-                                  multisample = TRUE, # TRUE = multisamples, FALSE = single sample
-                                  sample_col = "sample_id", # sample id column name
-                                  kernels = "gaussian", # pick the kernel style 
-                                  sigma = 10) # adjust the sigma for the region of interest
+spatwt_1m <- compute_FunCN(expr = df_rm,
+                           x_col = "X_position", # x_position column name
+                           y_col = "Y_position", # x_position column name
+                           celltype_col = "celltype", # cell type column name
+                           multisample = TRUE, # TRUE = multisamples, FALSE = single sample
+                           sample_col = "sample_id", # sample id column name
+                           kernels = "gaussian", # pick the kernel style 
+                           sigma = 10) # adjust the sigma for the region of interest
 spatwt_1m$sample_id<- factor(spatwt_1m$sample_id, levels=samplevels)
 
 
@@ -341,14 +341,14 @@ head(knnwt_core)
 
 funCN_core <- c()
 for (si in sigmas) {
-  funCN_res <- do_CI_quantification(expr = df_core,
-                                    x_col = "X_position",
-                                    y_col = "Y_position",
-                                    celltype_col = "cell_clustering1m",
-                                    multisample = FALSE, 
-                                    sample_col = NA, 
-                                    kernels = "gaussian",
-                                    sigma = si) 
+  funCN_res <- compute_FunCN(expr = df_core,
+                             x_col = "X_position",
+                             y_col = "Y_position",
+                             celltype_col = "cell_clustering1m",
+                             multisample = FALSE, 
+                             sample_col = NA,
+                             kernels = "gaussian",
+                             sigma = si) 
   funCN_res$sigma <- si
   funCN_res<- funCN_res%>% rownames_to_column("cell_Id")
   funCN_core<- rbind(funCN_core, funCN_res)
@@ -508,14 +508,14 @@ colnames(df_rm_2m)[4]<- "celltype"
 
 df_rm_2m$celltype <- factor(df_rm_2m$celltype, levels=clusterlevels)
 
-spatwt <- do_CI_quantification(expr = df_rm_2m,  # should contain sample_id, X, Y position, celltype in the df
-                               x_col = "X_position",
-                               y_col = "Y_position",
-                               celltype_col = "celltype",
-                               multisample = TRUE, 
-                               sample_col = "sample_id", 
-                               kernels = "gaussian",
-                               sigma = 10) 
+spatwt <- compute_FunCN(expr = df_rm_2m,  # should contain sample_id, X, Y position, celltype in the df
+                        x_col = "X_position",
+                        y_col = "Y_position",
+                        celltype_col = "celltype",
+                        multisample = TRUE,
+                        sample_col = "sample_id", 
+                        kernels = "gaussian",
+                        sigma = 10) 
 spatwt$sample_id<- factor(spatwt$sample_id, levels=samplevels)
 # save spatwt 
 # saveRDS(spatwt, "./backup/spatwt.rds")
@@ -663,7 +663,7 @@ for (cell_type in cell_types) {
   all_results[[cell_type]] <- results
   
   pdf(paste0('./output/FigureS3B_', cell_type, '.pdf'), height = 5, width = 5)
-  pS2B<- ggplot(results, aes(CellType, log2FC, fill = logP)) +
+  pS3B<- ggplot(results, aes(CellType, log2FC, fill = logP)) +
     geom_bar(width = 1, stat = "identity", color = "black") +
     scale_y_continuous(breaks = scales::breaks_width(1)) +
     scale_fill_gradient(low = "yellow", high = "red", name = "-log10(adj.pvalue)") +
@@ -676,6 +676,6 @@ for (cell_type in cell_types) {
       plot.margin = unit(c(1, 1, 1, 1), "cm")
     ) +
     coord_polar()
-  print(pS2B)
+  print(pS3B)
   dev.off()
 }

@@ -2,7 +2,7 @@
 #  do_Cellular_Influence_(CI)_quantification  #
 ###############################################
 
-do_CI_quantification <- function(expr = df_rm,
+compute_FunCN <- function(expr = df_rm,
                                  x_col = "X_position",
                                  y_col = "Y_position",
                                  celltype_col = "celltype",

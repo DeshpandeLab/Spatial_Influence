@@ -1,5 +1,5 @@
 ---
-title: "FunCN tutorial"
+title: "FunCN (Functional Cellular Neighborhood) tutorial"
 output:
   html_document:
     df_print: paged
@@ -11,11 +11,43 @@ knitr::opts_chunk$set(
   warning = FALSE)
 ```
 
+# Introduction
+**Why we developed FunCN?**  
+We developed **FunCN** to overcome the limitations of conventional neighborhood analysis methods such as KNN approach. The traditional methods rely on fixed boundaries, assigning equal weights to all neighboring cells within a cutoff distance, which can obscure the nuanced influence of spatial proximity. In reality, cellular interactions are distance-dependent, where closer cells exert stronger biological effects than those farther away. To address this, **FunCN** quantifies cellular influence through a continuous, distance-weighted representation that captures the gradual decay of interaction strength across spatial scales. 
+
+**RESOURCES**
+Cho, Y., Lee, J.W., Shin, S.M., Hernandez, A.G., Yuan, X., Schneider, J., Hooper, J.E., Wood, L.D., Jaffee, E.M., Deshpande, A. and Ho, W.J., 2025. Modeling cellular influence delineates functionally relevant cellular neighborhoods in primary and metastatic pancreatic ductal adenocarcinoma. bioRxiv, pp.2025-06. doi: https://doi.org/10.1101/2025.06.12.659314
+
+# Apply FunCN function
+**Description**  
+Computes smoothed, leave-one-out kernel weights for each point, grouped by cell-type marks.
+
+**Requirements**
+Input `expr` must contain:
+  
+  - `x_col`: x-coordinates  
+  - `y_col`: y-coordinates  
+  - `celltype_col`: cell type (mark)
+
+**Multi-sample data**  
+If there is multi-sample data in one data frame:
+  
+  - Set `multisample = TRUE`  
+  - Add `sample_col = "sample_col_name"`
+
+**Smoothing kernels**  
+
+  - A character string specifying the kernel  
+  - spatstat smooth function Options: `"gaussian"`, `"epanechnikov"`, `"quartic"`, `"disc"`
+
+# Load data
 ```{r, library}
 library(ggplot2)
 library(dplyr)
 library(tibble)
 library(cowplot)
+library(FNN)
+library(tidyr)
 ```
 
 ```{r, load data}
@@ -23,7 +55,80 @@ radial_pts <- readRDS('../data/radial_pts.rds')
 equidist_pts <- readRDS('../data/equidist_pts.rds')
 ```
 
-# Case 1: Equidistance example
+```{r, apply FunCN}
+source('./functions/compute_FunCN.R') 
+
+# check data format 
+print(radial_pts)
+
+radial_pts <- as.data.frame(radial_pts) # transform to data.frame class 
+equidist_pts <- as.data.frame(equidist_pts) 
+```
+
+# Usage
+```{r, usage}
+equi_spatwt <- compute_FunCN(expr = equidist_pts,
+                             x_col = "x",
+                             y_col = "y",
+                             celltype_col = "label",
+                             multisample = FALSE, 
+                             sample_col = NA, 
+                             kernels = "gaussian",
+                             sigma = 10)
+
+radi_spatwt <- compute_FunCN(expr = radial_pts,
+                             x_col = "x",
+                             y_col = "y",
+                             celltype_col = "label",
+                             multisample = FALSE, 
+                             sample_col = NA, 
+                             kernels = "gaussian",
+                             sigma = 10)
+
+print(equi_spatwt)
+print(radi_spatwt)
+```
+
+# Compare the FunCN score with KNN
+```{r, bar plot for FunCN score}
+get_neighbor_props <- function(df, k = 10, label_col = "label", xy_cols = c("x","y"), all_labels = NULL) {
+  # run kNN
+  knn_idx <- get.knn(df[, xy_cols], k = k)$nn.index
+  # pull labels as vector
+  labels_vec <- df[[label_col]]
+  # map neighbor indices -> labels
+  knn_labels <- matrix(labels_vec[knn_idx],
+                       nrow = nrow(knn_idx),
+                       ncol = ncol(knn_idx))
+  
+  # count label frequency per row
+  freq_mat <- t(apply(knn_labels, 1, function(neigh_labels) {
+    tab <- table(factor(neigh_labels, levels = all_labels))
+    as.numeric(tab)
+  }))
+  colnames(freq_mat) <- all_labels
+  
+  # convert to proportions
+  prop_mat <- as.data.frame(freq_mat/k)
+  # set rownames: "<rownames>:<label>"
+  rownames(prop_mat) <- paste0(rownames(df), ":", df[[label_col]])
+  return(prop_mat)
+}
+
+# define labels
+all_labels <- unique(c(equidist_pts$label, radial_pts$label))
+
+# run for each dataset
+prop_df_equi <- get_neighbor_props(equidist_pts, k = 10, all_labels = all_labels)
+prop_df_radi <- get_neighbor_props(radial_pts,k = 10, all_labels = all_labels)
+
+print(prop_df_equi)
+print(prop_df_radi)
+```
+
+# Compare spatial organization with cellular influence score
+
+### Case 1: Equidistance example
 ```{r, equi-distance dataset}
 p1 <- ggplot() +
   geom_segment(data = equidist_pts %>% dplyr::filter(label != "A"),
@@ -33,16 +138,18 @@ p1 <- ggplot() +
   geom_point(
     data = radial_pts %>% dplyr::filter(label == "A"),
     aes(x, y, color = label, shape = label),
-    size = 3.5, show.legend = FALSE
+    size = 5, show.legend = FALSE
   ) +
   coord_fixed(xlim = c(0, 50), ylim = c(0, 50)) +
-  labs(title = "(i)Equal distance", x = NULL, y = NULL) +
+  labs(title = "(i) Equal distance", x = NULL, y = NULL) +
   theme_minimal() +
   theme(legend.title = element_blank(), 
-        plot.title = element_text(hjust = 0.5))
+        plot.title = element_text(hjust = 0.5))+
+  scale_shape_manual(
+    values = c("A" = 18,"B" = 17, "C" = 15, "D" = 16))  
 ```
 
-# Case 2: Radial-distance example 
+### Case 2: Radial-distance example 
 ```{r, radial}
 # Parameters
 cx <- 25; cy <- 25
@@ -75,72 +182,68 @@ p2 <- ggplot() +
   geom_point(
     data = radial_pts %>% dplyr::filter(label == "A"),
     aes(x, y, color = label, shape = label),
-    size = 3.5, show.legend = FALSE
+    size = 5, show.legend = FALSE
   ) +
   coord_fixed(xlim = c(0, 50), ylim = c(0, 50)) +
   labs(title = "(ii) Radial distance", x = NULL, y = NULL) +
   theme_minimal() +
   theme(legend.title = element_blank(), 
-        plot.title = element_text(hjust = 0.5))
+        plot.title = element_text(hjust = 0.5))+
+  scale_shape_manual(
+    values = c("A" = 18,"B" = 17, "C" = 15, "D" = 16))   
 ```
-
+### Compile data for cellular influence score
 ```{r, plot}
-plot_grid(p1, p2, nrow = 1)
+# extract scores for A (reference)
+to_long <- function(df, method_name, sample_name) {
+  df %>%
+    as.data.frame() %>%
+    pivot_longer(
+      cols = c("A","B","C","D"),
+      names_to = "label",
+      values_to = "value"
+    ) %>%
+    mutate(
+      method = method_name,
+      sample = sample_name
+    )
+}
+
+long_equi_fun <- to_long(equi_spatwt[1, ], method_name = "FunCN", sample_name = "equidist")
+long_radi_fun <- to_long(radi_spatwt[1, ], method_name = "FunCN", sample_name = "radial")
+long_equi_knn <- to_long(prop_df_equi[1, ], method_name = "KNN", sample_name = "equidist")
+long_radi_knn <- to_long(prop_df_radi[1, ], method_name = "KNN", sample_name = "radial")
+
+data_for_plot <- as.data.frame(rbind(long_equi_fun, long_radi_fun, long_equi_knn, long_radi_knn))
+
+p3 <- ggplot(data_for_plot[data_for_plot$sample=="equidist", ], 
+             aes(x=label, y=value, fill=method))+
+  geom_bar(stat = "identity", position = position_dodge(width = 0.9)) +
+  geom_text(
+    aes(label = round(value, 3)),              
+    position = position_dodge(width = 0.9),   
+    vjust = -0.3,                             
+    size = 3
+  ) +
+  theme_minimal() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1)))+
+  labs(x = NULL, y = "Scores", title = NULL)
+
+p4<- ggplot(data_for_plot[data_for_plot$sample=="radial", ], 
+             aes(x=label, y=value, fill=method))+
+  geom_bar(stat = "identity", position = position_dodge(width = 0.9)) +
+  geom_text(
+    aes(label = round(value, 3)),              
+    position = position_dodge(width = 0.9),   
+    vjust = -0.3,                             
+    size = 3
+  ) +
+  theme_minimal() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1)))+
+  labs(x = NULL, y = "Scores", title = NULL)
+
 ```
 
-# Apply FunCN function to two datasets 
-**Description**  
-Computes smoothed, leave-one-out kernel weights for each point, grouped by cell-type marks.
-
-**Requirements**
-Input `expr` must contain:
-  
-  - `x_col`: x-coordinates  
-  - `y_col`: y-coordinates  
-  - `celltype_col`: cell type (mark)
-
-**Multi-sample data**  
-If there is multi-sample data in one data frame:
-  
-  - Set `multisample = TRUE`  
-  - Add `sample_col = "sample_col_name"`
-
-**Smoothing kernels**  
-
-  - A character string specifying the kernel  
-  - spatstat smooth function Options: `"gaussian"`, `"epanechnikov"`, `"quartic"`, `"disc"`
-  
-```{r, apply FunCN}
-source('./functions/do_CI_quantification.R') 
-
-# check data format 
-print(radial_pts)
-
-radial_pts <- as.data.frame(radial_pts) # transform to data.frame class 
-equidist_pts <- as.data.frame(equidist_pts) 
-
+```{r fig.width=10, fig.height=10}
+plot_grid(p1, p2, p3, p4, ncol = 2, rel_heights = c(4, 1))
 ```
-
-# Usage
-```{r, usage}
-equi_spatwt <- do_CI_quantification(expr = equidist_pts,
-                                    x_col = "x",
-                                    y_col = "y",
-                                    celltype_col = "label",
-                                    multisample = FALSE, 
-                                    sample_col = NA, 
-                                    kernels = "gaussian",
-                                    sigma = 10)
-
-radi_spatwt <- do_CI_quantification(expr = radial_pts,
-                                    x_col = "x",
-                                    y_col = "y",
-                                    celltype_col = "label",
-                                    multisample = FALSE, 
-                                    sample_col = NA, 
-                                    kernels = "gaussian",
-                                    sigma = 10)
-print(equi_spatwt)
-print(radi_spatwt)
-```
-
