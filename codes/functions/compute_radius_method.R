@@ -3,7 +3,7 @@
 # -------------------------------
 
 compute_radius_method <- function(df_core, celltype_col, clusterlevels, reference_type = "Tumor", rmax_pairs = 50) {
-  require(data.table)
+  require(data.table); require(spatstat)
   # df_core: data.frame/data.table for one sample_id with columns: X_position, Y_position, celltype
   DT <- as.data.frame(df_core)
   rownames(DT)<- paste0(rownames(DT), ":", DT[[celltype_col]])
