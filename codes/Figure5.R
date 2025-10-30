@@ -2,7 +2,7 @@
 ###       Figure 5         ###
 #============================#
 
-## Tumor TME analysis ====
+# Tumor TME analysis ====
 spatwt<- readRDS('./data/spatwt.rds')
 
 # filter all tumors (remove core 43)
@@ -69,8 +69,8 @@ markerExpr[subset, "type"]<- "BD"
 CNprop <- as.data.frame(table(markerExpr$type, markerExpr$Site))
 names(CNprop)<-c("CN", "Site", "Freq")
 CNprop<- CNprop%>% 
-  group_by(Site)%>% 
-  mutate(total_counts = sum(Freq), 
+  dplyr::group_by(Site)%>% 
+  dplyr::mutate(total_counts = sum(Freq), 
          prop=Freq/total_counts*100)
 
 CNprop_1 <- as.data.frame(CNprop)
@@ -78,17 +78,18 @@ CNprop_1$CN <- as.character(CNprop_1$CN)
 CNprop_1$CN[CNprop_1$CN!="BK"]<-"BD"
 
 CNprop_1 <- CNprop_1 %>% 
-  group_by(Site, CN) %>% 
+  dplyr::group_by(Site, CN) %>% 
   dplyr::summarise(counts = sum(Freq), .groups = "drop") %>%  # Calculate counts per Site and CN
-  group_by(Site) %>% 
-  mutate(
+  dplyr::group_by(Site) %>% 
+  dplyr::mutate(
     total_counts = sum(counts),    # Total counts per Site
     prop = (counts / total_counts) * 100  # Proportion in percentage
   ) %>% 
   ungroup()
 
 
-pdf('./output/Figure5C.pdf', height=4, width=2.5)
+CNprop_1$Site<- factor(CNprop_1$Site, levels=c("Liver", "Pancreas"))
+pdf('./output/Figure5C.pdf', height=2, width=4.5)
 p5C<- ggplot(CNprop_1, aes(x=Site, y=prop, fill=CN))+
   scale_fill_manual(values = c("BK" = "#DF536C", "BD" = "black"))+
   geom_col(position="fill", width = 0.7) +
@@ -96,9 +97,9 @@ p5C<- ggplot(CNprop_1, aes(x=Site, y=prop, fill=CN))+
   scale_y_continuous(expand = c(0, 0), labels = function(x) paste0(x * 100)) +
   labs(title = "", x = "", y = "", fill="Tumor\nClassification")+ 
   theme(axis.text=element_text(size=14,color = "black"),
-        axis.text.x = element_text(angle=45, hjust =1),
         legend.position="right", 
-        legend.text = element_text(size=13)) 
+        legend.text = element_text(size=13))+ 
+  coord_flip()
 print(p5C)
 dev.off()
 
@@ -106,20 +107,21 @@ dev.off()
 
 #====
 
-data_for_violin <- melt(cbind(spatwt_df_tum[, clusterlevels], markerExpr))
+data_for_violin <- reshape::melt(cbind(spatwt_df_tum[, clusterlevels], markerExpr))
 data_for_violin <- data_for_violin %>%
   dplyr::mutate(type = ifelse(type == "BK", "BK", "BD"))
 
 summary_df_2 <- data_for_violin %>%
-  group_by(variable, sample_id,type, Site)%>% 
+  dplyr::group_by(variable, sample_id,type, Site)%>% 
   dplyr::summarise(
     mean_value = mean(value))
 
-selected_celltypes <- c("Treg","M_I", "Str_I", "Str_II")
-
+selected_celltypes <- c("M_I", "Treg", "Str_I", "Str_II")
+subset_df <- subset(summary_df_2, variable%in%selected_celltypes)
+subset_df$variable<- factor(subset_df$variable, levels=selected_celltypes)
 # Cellular influences on Tumors (Compare between Sites)
 pdf('./output/Figure5D.pdf', height=5, width=3)
-p5D<- ggplot(summary_df_2[summary_df_2$variable%in%selected_celltypes, ], aes(x = type, y = mean_value, fill = Site)) +
+p5D<- ggplot(subset_df, aes(x = type, y = mean_value, fill = Site)) +
   geom_violin(alpha = 0.6, position = position_dodge(width = 0.8)) +
   geom_boxplot(width = 0.3, position = position_dodge(width = 0.8), alpha = 0.5) +
   stat_compare_means(
@@ -144,25 +146,32 @@ dev.off()
 selected_markers <- c("CK","CD86")
 
 # Tumor Marker expression level between Sites
-pdf('./output/Figure5E.pdf', height=2.5, width=3)
-p5E<- ggplot(summary_df_2[summary_df_2$variable%in%selected_markers, ], aes(x = type, y = mean_value, fill = Site)) +
+summary_df_2$Tumor_type <- paste0(summary_df_2$Site, "_", summary_df_2$type)
+summary_df_2$Tumor_type<- factor(summary_df_2$Tumor_type, levels = c("Pancreas_BK", "Pancreas_BD", "Liver_BK", "Liver_BD"))
+comparisons <- list(c("Pancreas_BK", "Pancreas_BD"), c("Pancreas_BK", "Liver_BK"), c("Pancreas_BK","Liver_BD"), 
+                    c("Pancreas_BD", "Liver_BD"), c("Liver_BK", "Liver_BD"))
+
+pdf('./output/Figure5E.pdf', height=3.5, width=3)
+p5E<- ggplot(summary_df_2[summary_df_2$variable%in%selected_markers, ], aes(x = Tumor_type, y = mean_value, fill = Tumor_type)) +
   geom_violin(alpha = 0.6, position = position_dodge(width = 0.8)) +
   geom_boxplot(width = 0.3, position = position_dodge(width = 0.8), alpha = 0.5) +
   stat_compare_means(
-    method = "wilcox.test",  
-    paired = F, 
+    method = "wilcox.test", 
+    comparisons = comparisons, 
+    paired = FALSE, 
     label = "p.signif", 
-    hide.ns = T, 
-    size=5
+    hide.ns = FALSE, 
+    size=3
   ) +
-  scale_y_continuous(expand = expansion(mult = c(0.1, 0.2))) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
   facet_wrap(~variable, scales = "free", ncol = 2) +  
   theme_bw() + 
   ylab("Mean Marker Expression") +
-  xlab("Tumor type")+ 
-  theme(legend.position = "top", 
+  xlab("")+ 
+  theme(legend.position = "none", 
         axis.text = element_text(size=12, color="black"), 
-        axis.title=element_text(size=12, color="black"))
+        axis.title=element_text(size=12, color="black"), 
+        axis.text.x = element_text(angle=45, hjust=1))
 print(p5E)
 dev.off()
 
@@ -186,7 +195,7 @@ dev.off()
 
 ## spearman correlation between weight vs markers ==== 
 
-data_for_heatmap <- melt(cbind(spatwt_df_tum[, clusterlevels], markerExpr))
+data_for_heatmap <- reshape::melt(cbind(spatwt_df_tum[, clusterlevels], markerExpr))
 data_for_heatmap <- data_for_heatmap %>%
   dplyr::mutate(type = ifelse(type == "BK", "BK", "BD"))
 
@@ -198,7 +207,7 @@ selected_celltypes <- c("Immune_Mix","CD8T","CD4T","Treg", "NK",
 selected_markers<- c("CK", "KI67", "PDL1", "CD86", "VISTA")
 
 summary_df <- data_for_heatmap %>%
-  group_by(variable, sample_id,type, Site)%>% 
+  dplyr::group_by(variable, sample_id,type, Site)%>% 
   dplyr::summarise(
     mean = mean(value))
 
@@ -427,6 +436,36 @@ plot_multiple_probability_masks(coord_data = df_output,
                                 ncols = 4, 
                                 filenameprefix= "Figure5F_")
 
+plot_5F_data <- df_output[df_output$sample_id%in%select_sampID, ]
+plot_5F_data$cluster <- factor(plot_5F_data$cluster,
+                               levels = c("Tumor","M_I","M_II","Str_I","Str_II","Neutrophil", "Treg"))
+
+cols <- c(
+  Tumor   = "#d3d3d3",
+  M_I = "#d62728",
+  M_II = "#d62728",
+  Str_I   = "#BBE5E9",
+  Str_II = "#1f77b4",
+  Neutrophil = "#9C4DF5",
+  Treg   = "#2ca02c", 
+  others ="white"
+)
+
+p5F<- ggplot(plot_5F_data, aes(x=X_position, y=Y_position, color=cluster))+
+  geom_point(size=1)+
+  facet_wrap(~sample_id, nrow=1) +
+  scale_y_reverse()+
+  scale_color_manual(values = cols, drop = FALSE, na.value = "white") + 
+  coord_equal()+
+  theme_minimal()+
+  theme(axis.text = element_blank(), 
+        axis.title = element_blank(),
+        panel.grid.major = element_blank(),  
+        panel.grid.minor = element_blank())
+
+pdf('./output/Fig5F.pdf', width=20, height=8)
+print(p5F)
+dev.off()
 
 index <- which(df_output$cluster=="Tumor"&
                  df_output$sample_id%in%select_sampID)
@@ -451,13 +490,13 @@ selected_markers<- c("CK", "KI67", "PDL1", "CD86", "VISTA")
 
 celltype_summary <- df %>%
   dplyr::select(all_of(selected_celltypes), sample_id, Site) %>%
-  group_by(sample_id, Site) %>%
-  summarise(across(all_of(selected_celltypes), mean, na.rm = TRUE), .groups = "drop")
+  dplyr::group_by(sample_id, Site) %>%
+  dplyr::summarise(across(all_of(selected_celltypes), mean, na.rm = TRUE), .groups = "drop")
 
 marker_summary <- df %>%
   dplyr::select(all_of(selected_markers), sample_id, Site) %>%
-  group_by(sample_id,Site) %>%
-  summarise(across(all_of(selected_markers), mean, na.rm = TRUE), .groups = "drop")
+  dplyr::group_by(sample_id,Site) %>%
+  dplyr::summarise(across(all_of(selected_markers), mean, na.rm = TRUE), .groups = "drop")
 
 merged_summary <- left_join(celltype_summary, marker_summary, by = c("sample_id", "Site"))
 
@@ -483,10 +522,10 @@ merged_summary$type<- factor(merged_summary$type,
 # PDL1 expr for tumor types (individual tumor cells)
 tumor_types<- merged_summary[, c("sample_id", "type")]
 
-pdf('./output/FigureS4A.pdf', height=3, width=4)
-pS4A<- ggplot(merged_summary,
+pdf('./output/FigureS5A.pdf', height=3, width=3.5)
+pS5A<- ggplot(merged_summary,
               aes(x=type, y=PDL1, color=type)) +
-  geom_boxplot(alpha=0.5) +
+  geom_boxplot(alpha=0.5, outlier.shape = NA) +
   geom_jitter(width=0.2, alpha=0.6, size=1)+ 
   theme_bw()+ 
   theme(strip.background = element_blank(),
@@ -495,14 +534,27 @@ pS4A<- ggplot(merged_summary,
         plot.title = element_text(hjust = 0.5))+
   facet_wrap(~Site) + 
   xlab("type")
-print(pS4A)
+print(pS5A)
 dev.off()
 
+ddf <- as.data.frame(table(merged_summary$Site, merged_summary$type))
 
-pdf('./output/FigureS4C.pdf', height=4, width=4)
-pS4C<- ggplot(merged_summary,
+pdf('./output/FigS5B.pdf', width=2.5, height=4)
+pS5B<-ggplot(ddf, aes(x = Var1, y = Freq, fill = Var2)) +
+  geom_col(position="fill") +
+  scale_y_continuous(expand = c(0, 0),labels = function(x) paste0(x * 100)) +
+  labs(title = "", x = "", y = "", fill="type") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.text= element_text(colour ="black", size = 12),
+        legend.key.size = unit(0.4, "cm"))
+print(pS5B)
+dev.off()
+
+pdf('./output/FigureS5C.pdf', height=4, width=4)
+pS5C<- ggplot(merged_summary,
        aes(x=type, y=VISTA, color=type)) +
-  geom_boxplot(alpha=0.5) +
+  geom_boxplot(alpha=0.5, outlier.shape = NA) +
   geom_jitter(width=0.2, alpha=0.6, size=1)+ 
   theme_bw()+ 
   theme(strip.background = element_blank(),
@@ -510,7 +562,7 @@ pS4C<- ggplot(merged_summary,
         axis.text.x = element_text(angle=45, color="black", hjust=1),
         plot.title = element_text(hjust = 0.5))+
   facet_wrap(~Site)
-print(pS4C)
+print(pS5C)
 dev.off()
 
 
@@ -530,8 +582,8 @@ ggplot(merged_summary,
   facet_wrap(~Site)
 
 
-pdf('./output/FigureS4D.pdf', height=4, width=5)
-pS4D<- ggplot(merged_summary,
+pdf('./output/FigureS5D.pdf', height=4, width=5)
+pS5D<- ggplot(merged_summary,
        aes(x= VISTA, y=Neutrophil, color=type)) +
   geom_point(alpha=0.5) +
   theme_bw() + 
@@ -545,140 +597,9 @@ pS4D<- ggplot(merged_summary,
   #         size=3) + 
   geom_smooth(method=lm, aes(fill=type), alpha=0.2)+ 
   facet_wrap(~Site)
-print(pS4D)
+print(pS5D)
 dev.off()
 
-
-# Survival analysis
-#----------TCGA data-----------
-GDCprojects = getGDCprojects()
-
-head(GDCprojects[c("project_id", "name")])
-#https://docs.gdc.cancer.gov/Data_Portal/Users_Guide/Projects/
-
-project_id <- "TCGA-PAAD"
-TCGAbiolinks:::getProjectSummary(project_id)
-
-query_TCGA = GDCquery(
-  project = project_id,
-  data.category = "Transcriptome Profiling", 
-  data.type = "Gene Expression Quantification", 
-  experimental.strategy = "RNA-Seq",
-  workflow.type = "STAR - Counts",
-  sample.type = c("Primary Tumor"))
-
-#Visualize the query results
-prad_res = getResults(query_TCGA) # make results as table
-colnames(prad_res)
-table(prad_res$sample_type)
-prad_res$sample_type <- as.factor(prad_res$sample_type)
-
-
-
-##Next, we need to download the files from the query
-GDCdownload(query = query_TCGA)
-tcga_data = GDCprepare(query_TCGA)
-
-table(tcga_data@colData$vital_status)
-table(tcga_data@colData$tissue_or_organ_of_origin)
-
-dim(assay(tcga_data))     # gene expression matrices
-head(assay(tcga_data)[,1:10]) 
-head(rowData(tcga_data))    
-saveRDS(object = tcga_data,
-        file = "tcga_data_PAAD.RDS",
-        compress = FALSE)
-
-#----------the data can be loaded and begin from here--------
-#tcga_data = readRDS(file = "tcga_data_PAAD.RDS")
-
-
-#---------Survival analysis---------------------------
-# count data 
-primary_tumor_samples <- tcga_data@colData@rownames
-counts <- assay(tcga_data, "unstranded")
-
-gene_metadata <- as.data.frame(rowData(tcga_data))
-coldata<- as.data.frame(colData(tcga_data))
-
-# vst transform counts to be used for survival analysis (normalized data for comparison between patients) 
-dds <- DESeqDataSetFromMatrix(countData = counts, 
-                              colData = coldata, 
-                              design = ~1)
-# removing genes with sum total of 10 reads across all samples 
-keep <- rowSums(counts(dds)) >=10 
-dds <- dds[keep, ]
-
-# vst
-vsd <- vst(dds, blind = FALSE)
-paad_vst <- assay(vsd)
-
-geneName <- "VSIR"
-selcted_gene<-paad_vst%>% as.data.frame()%>% 
-  rownames_to_column("gene_id")%>% 
-  gather(key='case_id', value="counts", -gene_id)%>% 
-  left_join(., gene_metadata, by="gene_id")%>%
-  dplyr::filter(gene_name==geneName)
-
-head(selcted_gene)
-
-
-# Compute the 20th and 80th percentiles
-lowerquantile = 0.20
-upperquantile = 0.80
-percentile_lower <- quantile(selcted_gene$counts, lowerquantile, na.rm = TRUE)
-percentile_upper <- quantile(selcted_gene$counts, upperquantile, na.rm = TRUE)
-
-# Assign strata based on percentile thresholds
-selcted_gene$strata <- ifelse(selcted_gene$counts <= percentile_lower, "LOW",
-                              ifelse(selcted_gene$counts >= percentile_upper, "HIGH", NA))
-
-# validate VISTA expr level for high/low groups 
-ggplot(selcted_gene,
-       aes(x=strata, y=counts, color=strata)) +
-  geom_boxplot(alpha=0.5) +
-  geom_jitter(width=0.2, alpha=0.6, size=1)+ 
-  theme_bw()+ 
-  theme(strip.background = element_blank(),
-        strip.text = element_text(size = 15),
-        axis.text.x = element_text(angle=45, color="black", hjust=1),
-        plot.title = element_text(hjust = 0.5))
-
-# extract clinical data
-clinical = tcga_data@colData
-
-clin_df = clinical[, c("patient",
-                       "vital_status", #whether the patient is alive or dead
-                       "days_to_death", #the number of days passed from initial diagnosis to the death
-                       "days_to_collection" #the number of days passed from initial diagnosis to last visit
-)]
-
-# create a new boolean variable that has TRUE for dead patients
-# and FALSE for live patients
-clin_df$deceased = clin_df$vital_status == "Dead"
-
-# create an "overall survival" variable that is equal to days_to_death
-# for dead patients, and to days_to_last_follow_up for patients who
-# are still alive
-clin_df$overall_survival = ifelse(clin_df$deceased,
-                                  clin_df$days_to_death,
-                                  clin_df$days_to_collection)
-
-clin_df <- as.data.frame(clin_df)%>% 
-  rownames_to_column("submitter_id")
-selcted_gene<- merge(selcted_gene, clin_df, by.x="case_id", by.y="submitter_id")
-
-coxph(Surv(overall_survival,deceased) ~ counts, data=selcted_gene)
-
-
-# fit a survival model
-fit = survfit(Surv(overall_survival, deceased) ~ strata, data=selcted_gene)
-
-# Kaplan Meier plot
-pdf('./output/FigureS4E.pdf', height=5, width=5)
-pS4C<- ggsurvplot(fit, data=selcted_gene, pval=T, risk.table=T, risk.table.col="strata", xlab="Time (days)")
-print(pS4C)
-dev.off()
 
 
 ## Matched Patients ==== 
@@ -689,7 +610,7 @@ matchedPA<- intersect(unique(df_output$Patient[df_output$Site=="Pancreas"]),
 matched_sampID<- unique(df_output$meta_data$sample_id[df_output$Patient%in%matchedPA&
                                                         df_output$meta_data$sample_id!=43])
 
-## Figure S4F-G
+## Figure S5F-G
 # observe cellular influence and marker expr level change by Patient (average by patient)
 df<- left_join(df, Specimen_designation[, c("sample_id", "Patient")], by="sample_id")
 
@@ -699,13 +620,13 @@ df_filtered<- df%>%
 
 celltype_summary_2 <- df_filtered %>%
   dplyr::select(all_of(selected_celltypes), Patient, Site) %>%
-  group_by(Patient, Site) %>%
-  summarise(across(all_of(selected_celltypes), mean, na.rm = TRUE), .groups = "drop")
+  dplyr::group_by(Patient, Site) %>%
+  dplyr::summarise(across(all_of(selected_celltypes), mean, na.rm = TRUE), .groups = "drop")
 
 marker_summary_2 <- df_filtered %>%
   dplyr::select(all_of(selected_markers), Patient, Site) %>%
-  group_by(Patient, Site) %>%
-  summarise(across(all_of(selected_markers), mean, na.rm = TRUE), .groups = "drop")
+  dplyr::group_by(Patient, Site) %>%
+  dplyr::summarise(across(all_of(selected_markers), mean, na.rm = TRUE), .groups = "drop")
 
 merged_summary2 <- left_join(celltype_summary_2, marker_summary_2, by = c("Patient",  "Site"))
 
@@ -713,7 +634,7 @@ merged_summary2$Patient<- factor(merged_summary2$Patient,
                                  levels=c("PA2", "PA5", "PA6", "PA8", "PA10", "PA11"))
 
 
-merged_summary2_melt <- melt(as.data.frame(merged_summary2))
+merged_summary2_melt <- reshape::melt(as.data.frame(merged_summary2))
 
 merged_summary2_celltype <- merged_summary2_melt%>% 
   dplyr:: filter(variable%in%c("CD8T", "CD4T", "Treg", "NK", 
@@ -721,8 +642,8 @@ merged_summary2_celltype <- merged_summary2_melt%>%
                                "Str_I", "Str_II"))
 merged_summary2_melt$variable <- factor(merged_summary2_melt$variable)
 
-pdf('./output/FigureS4F.pdf', height=4, width=8)
-pS4F<- ggplot(merged_summary2_celltype, aes(x=Site, y=value, group=Patient))+
+pdf('./output/FigureS5F.pdf', height=4, width=8)
+pS5F<- ggplot(merged_summary2_celltype, aes(x=Site, y=value, group=Patient))+
   geom_line(aes(color=Patient), size = 1) + 
   geom_point(aes(shape=Patient))+ 
   facet_wrap(~variable, scales = "free_y", ncol = 5)+
@@ -735,14 +656,14 @@ pS4F<- ggplot(merged_summary2_celltype, aes(x=Site, y=value, group=Patient))+
   scale_x_discrete(labels = c("PRI", "MET")) + 
   theme(axis.text.x = element_text(size=14, angle=45,  hjust =1))
 #guides(color = guide_legend(nrow = 1), shape = guide_legend(nrow = 1))
-print(pS4F)
+print(pS5F)
 dev.off()
 
 merged_summary2_marker <- merged_summary2_melt%>% 
   dplyr:: filter(variable%in%c("CK", "KI67","PDL1", "CD86", "VISTA"))
 
-pdf('./output/FigureS4G.pdf', height=4, width=4.5)
-pS4G<- ggplot(merged_summary2_marker, aes(x=Site, y=value, group=Patient))+
+pdf('./output/FigureS5G.pdf', height=4, width=4.5)
+pS5G<- ggplot(merged_summary2_marker, aes(x=Site, y=value, group=Patient))+
   geom_line(aes(color=Patient), size = 1) + 
   geom_point(aes(shape=Patient))+ 
   facet_wrap(~variable, scales = "free_y", ncol = 3)+
@@ -755,5 +676,5 @@ pS4G<- ggplot(merged_summary2_marker, aes(x=Site, y=value, group=Patient))+
   scale_x_discrete(labels = c("PRI", "MET")) + 
   theme(axis.text.x = element_text(size=14, angle=45,  hjust =1))
 #guides(color = guide_legend(nrow = 1), shape = guide_legend(nrow = 1))
-print(pS4G)
+print(pS5G)
 dev.off()

@@ -64,8 +64,8 @@ do_CN_analysis <- function(spatwt_df = spatwt_df_tum, #cell of interest filtered
           axis.text.x= element_text(colour ="black", size = 9),
           axis.text.y= element_text(colour ="black", size = 12),
           panel.border = element_rect(colour = "black", fill = NA, size = 0.7),  
-          panel.grid.major = element_line(size = 0.5, linetype = 'solid'),  
-          panel.grid.minor = element_line(size = 0.25, linetype = 'solid'), 
+          panel.grid.major = element_line(size = 0.1, linetype = 'solid'),  
+          panel.grid.minor = element_line(size = 0.1, linetype = 'solid'), 
           legend.title = element_text(size = 8),
           legend.text = element_text(size = 7), 
           legend.key.size = unit(0.2, "cm"),
@@ -186,15 +186,15 @@ do_CN_analysis <- function(spatwt_df = spatwt_df_tum, #cell of interest filtered
   expr0$TME<- factor(expr0$TME, levels=paste0("CN",1:numClusters))
   
   ## Overall functional state comparison between Sites 
-  data <- melt(expr0)
+  data <- reshape::melt(expr0)
   data_filtered <- data[data$variable%in%funcMarkers, ]
 
   data_for_plot<- data_filtered
 
   summary_df <- data_for_plot %>%
-    group_by(Site, variable)%>% 
+    dplyr::group_by(Site, variable)%>% 
     dplyr::mutate(baselevel = median(value))%>%
-    group_by(TME, Site, variable, baselevel) %>%
+    dplyr::group_by(TME, Site, variable, baselevel) %>%
     dplyr::summarise(
       median_value = median(value),
       mean_value = mean(value),

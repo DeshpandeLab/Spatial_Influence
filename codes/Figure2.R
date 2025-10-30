@@ -61,11 +61,11 @@ counts_frac$cellTypes <- factor(counts_frac$cellTypes, levels=clusterlevels)
 
 # total number of cells for pancreas and liver 
 total_counts<- counts_frac%>% 
-  group_by(Site)%>% 
-  summarise(count = sum(value))
+  dplyr::group_by(Site)%>% 
+  dplyr::summarise(count = sum(value))
 
 pct_total_counts<- reshape::melt(total_counts)%>% 
-  mutate(pct = value/sum(value)*100)
+  dplyr::mutate(pct = value/sum(value)*100)
 pct_total_counts$variable<-"total fraction"
 
 # Site fraction for all cells
@@ -89,16 +89,16 @@ p0<- ggplot(pct_total_counts, aes(x = variable, y = pct, fill = Site)) +
 
 # group by cell type and site, then take average of values 
 table1<- counts_frac %>% 
-  group_by(cellTypes,Site) %>% 
-  mutate(aggr_counts = sum(value)) 
+  dplyr::group_by(cellTypes,Site) %>% 
+  dplyr::mutate(aggr_counts = sum(value)) 
 
 table1<-table1[!duplicated(table1[c("cellTypes","Site")]),] 
 dim(table1) # 42 X 7 (21 cellTypes * 2 Sites)
 
 # calculate Site fractions for each cellTypes
 table1<- table1%>% 
-  group_by(cellTypes)%>% 
-  mutate(pct = aggr_counts/sum(aggr_counts)*100)
+  dplyr::group_by(cellTypes)%>% 
+  dplyr::mutate(pct = aggr_counts/sum(aggr_counts)*100)
 
 # Reorder levels of the Celltype factor based on pct values (sort with Liver)
 order <- (table1[table1$Site=="Liver",]$cellTypes)[order(table1[table1$Site=="Liver",]$pct)]
@@ -125,8 +125,8 @@ celltype_colors <- hcl.colors(length(clusterlevels), palette ="Spectral")
 # celltype abundance for each core 
 
 table2<- counts_frac%>% 
-  group_by(sample_id)%>% 
-  mutate(pct = value/sum(value)*100)
+  dplyr::group_by(sample_id)%>% 
+  dplyr::mutate(pct = value/sum(value)*100)
 
 p2<-ggplot(table2, aes(x=sample_id, y=pct, fill=cellTypes))+
   geom_col(position="fill", width = 0.8) +
@@ -146,16 +146,16 @@ p2<-ggplot(table2, aes(x=sample_id, y=pct, fill=cellTypes))+
 # celltype abundance for each Patient =====
 
 table3<- counts_frac %>% 
-  group_by(cellTypes, Patient, Site) %>% 
-  mutate(aggr_counts = sum(value)) 
+  dplyr::group_by(cellTypes, Patient, Site) %>% 
+  dplyr::mutate(aggr_counts = sum(value)) 
 
 table3<-table3[!duplicated(table3[c("cellTypes","Patient", "Site")]),] 
 dim(table3) 
 
 # calculate Site fractions for each cellTypes
 table3<- table3%>% 
-  group_by(Patient)%>% 
-  mutate(pct = aggr_counts/sum(aggr_counts)*100)
+  dplyr::group_by(Patient)%>% 
+  dplyr::mutate(pct = aggr_counts/sum(aggr_counts)*100)
 
 
 p3<- ggplot(table3, aes(x=Patient, y=pct, fill=cellTypes))+
@@ -238,8 +238,8 @@ colnames(props_df_rm)[2]<- "sample_id"
 props_df_rm<- left_join(props_df_rm, Specimen_designation[,c("sample_id", "Site")], by="sample_id")
 
 props_df_rm <- props_df_rm %>%
-  group_by(cellTypes, Site) %>%
-  mutate(median_value = median(value, na.rm = TRUE)) %>%
+  dplyr::group_by(cellTypes, Site) %>%
+  dplyr::mutate(median_value = median(value, na.rm = TRUE)) %>%
   ungroup()
 
 props_df_rm<- props_df_rm[order(props_df_rm$median_value, decreasing=T), ]

@@ -156,10 +156,10 @@ markerExpr_cd8T$CN <- as.factor(paste0("CN",CD8T_cn_2m))
 data_for_plot <- reshape::melt(markerExpr_cd8T)
 
 summary_df <- data_for_plot %>%
-  group_by(variable, CN, Site)%>% 
+  dplyr::group_by(variable, CN, Site)%>% 
   dplyr::summarise(
     median_value = median(value))%>%
-  group_by(variable)%>% 
+  dplyr::group_by(variable)%>% 
   dplyr::mutate(scaled_median = as.numeric(scale(median_value)))
 
 # scaled Marker expression (across CN)
@@ -242,13 +242,13 @@ CNprop_3 <- as.data.frame(CNprop)%>%
 CNprop_3$CN <- factor(paste0("CN", CNprop_3$CN), levels=c(paste0("CN", 1:numClust)))
 
 CNprop_3 <- CNprop_3 %>% 
-  group_by(Site, CN, Patient, sample_id) %>% 
-  summarise(counts = sum(Freq))%>% 
+  dplyr::group_by(Site, CN, Patient, sample_id) %>% 
+  dplyr::summarise(counts = sum(Freq))%>% 
   ungroup()
 
 CNprop_3 <- CNprop_3 %>% 
-  group_by(sample_id) %>% 
-  mutate(total_counts = sum(counts))%>% 
+  dplyr::group_by(sample_id) %>% 
+  dplyr::mutate(total_counts = sum(counts))%>% 
   ungroup()
 
 CNprop_3$prop<- CNprop_3$counts/CNprop_3$total_counts*100
@@ -287,11 +287,11 @@ data_for_plot<- data_for_plot %>%
 
 
 summary_df <- data_for_plot %>%
-  group_by(variable, type, Site)%>% 
+  dplyr::group_by(variable, type, Site)%>% 
   dplyr::summarise(
     mean_value = mean(value), 
     median_value = median(value))%>%
-  group_by(variable)%>% 
+  dplyr::group_by(variable)%>% 
   dplyr::mutate(scaled_median = as.numeric(scale(median_value)))
 
 # scaled Marker expression (across CN)
@@ -322,9 +322,9 @@ data_melted$type<- factor(data_melted$type, levels=c("BK", 1:numClust))
 data_for_plot_line<- data_melted
 
 summary_df_line <- data_for_plot_line %>%
-  group_by(Site, variable)%>% 
+  dplyr::group_by(Site, variable)%>% 
   dplyr::mutate(baselevel = median(value))%>%
-  group_by(type, Site, variable, baselevel) %>%
+  dplyr::group_by(type, Site, variable, baselevel) %>%
   dplyr::summarise(
     median_value = median(value),
     mean_value = mean(value),
